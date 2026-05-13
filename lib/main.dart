@@ -12,7 +12,7 @@ class LiveGOApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'LiveGO Fresh Test',
+      title: 'LiveGO Streaming',
       theme: ThemeData.dark(),
       home: const HomeScreen(),
       debugShowCheckedModeBanner: false,
