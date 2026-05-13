@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'ui/home.dart';
 import 'ui/account.dart';
 import 'ui/downloads.dart';
+import 'ui/search_screen.dart';
 import 'ui/api_service.dart';
 
 void main() async {
@@ -24,16 +25,6 @@ class MyApp extends StatelessWidget {
           primary: Color(0xFF4F46E5),
           secondary: Color(0xFF8B5CF6),
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0D1117),
-          elevation: 0,
-          centerTitle: false,
-        ),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFF0D1117),
-          selectedItemColor: Color(0xFF4F46E5),
-          unselectedItemColor: Colors.grey,
-        ),
       ),
       home: const MainPage(),
     );
@@ -47,7 +38,12 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _idx = 0;
-  final List<Widget> _pages = [const HomePage(), const DownloadPage(), const AccountPage()];
+  final List<Widget> _pages = [
+    const HomePage(),
+    const SearchScreen(),
+    const DownloadPage(),
+    const AccountPage(),
+  ];
 
   @override Widget build(BuildContext context) {
     return Scaffold(
@@ -59,6 +55,7 @@ class _MainPageState extends State<MainPage> {
         elevation: 8,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'SEARCH'),
           BottomNavigationBarItem(icon: Icon(Icons.download), label: 'UNDUHAN'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'AKUN'),
         ],

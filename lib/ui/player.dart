@@ -501,3 +501,5 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 }
+  // Tambahkan di dalam _loadVideo setelah controller initialize:
+  // if (resumePosition > 0) _controller!.seekTo(Duration(seconds: resumePosition));

@@ -172,7 +172,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
-        title: const Text("LiveGO", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Row(children: [Image.asset("assets/images/logo.png", height: 30), const SizedBox(width: 8), const Text("LiveGO")], style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         actions: [
           IconButton(icon: const Icon(Icons.search, color: Colors.white), onPressed: () {}),
           IconButton(icon: const Icon(Icons.favorite_border, color: Colors.white), onPressed: () {}),
