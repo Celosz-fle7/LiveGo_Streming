@@ -4,7 +4,7 @@ import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../widgets.dart';
-import '../api_service.dart';
+import 'api_service.dart';
 
 class PlayerPage extends StatefulWidget {
   final String id, source, title;
@@ -152,7 +152,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 const SizedBox(height: 15),
                 GridView.builder(
                   shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: isT ? 7 : 5, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.2),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: isT ? 7 : 5, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.2),
                   itemCount: d!['total_episodes'] ?? 0,
                   itemBuilder: (c, i) => TVButton(
                     onTap: () => _loadVideo(i + 1),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets.dart';
+import 'widgets.dart';
 
 class DownloadPage extends StatelessWidget {
   const DownloadPage({super.key});

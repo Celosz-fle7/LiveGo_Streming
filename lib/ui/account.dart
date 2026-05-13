@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import '../widgets.dart';
+import 'widgets.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
