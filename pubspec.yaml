@@ -1,0 +1,14 @@
+name: livego_streaming
+description: "Aplikasi Streaming Dracin Fresh Test"
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  http: ^1.2.1
+  crypto: ^3.0.3
+flutter:
+  uses-material-design: true
