@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'widgets.dart';
+import 'settings/source_manager.dart';
 import '../database/database_helper.dart';
 
 class AccountPage extends StatefulWidget {
@@ -87,7 +88,7 @@ class _AccountPageState extends State<AccountPage> {
                   title: Text(_history[i]['drama_title'], style: const TextStyle(color: Colors.white)),
                   subtitle: Text("Episode ${_history[i]['episode_number']}", style: const TextStyle(color: Colors.white54)),
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
+                    icon: const Icon(Icons.delete, color: Color(0xFFEF4444)),
                     onPressed: () async {
                       await DatabaseHelper().deleteHistoryItem(_history[i]['id']);
                       _loadHistory();
@@ -101,7 +102,7 @@ class _AccountPageState extends State<AccountPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("Tutup", style: TextStyle(color: Colors.white54))),
           if (_history.isNotEmpty)
-            TextButton(onPressed: _clearHistory, child: const Text("Hapus Semua", style: TextStyle(color: Colors.red))),
+            TextButton(onPressed: _clearHistory, child: const Text("Hapus Semua", style: TextStyle(color: Color(0xFFEF4444)))),
         ],
       ),
     );
@@ -124,7 +125,7 @@ class _AccountPageState extends State<AccountPage> {
                   title: Text(_favorites[i]['drama_title'], style: const TextStyle(color: Colors.white)),
                   subtitle: Text("${_favorites[i]['total_episodes']} Episode", style: const TextStyle(color: Colors.white54)),
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
+                    icon: const Icon(Icons.delete, color: Color(0xFFEF4444)),
                     onPressed: () async {
                       await DatabaseHelper().removeFromFavorites(_favorites[i]['drama_id']);
                       _loadFavorites();
@@ -138,7 +139,7 @@ class _AccountPageState extends State<AccountPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("Tutup", style: TextStyle(color: Colors.white54))),
           if (_favorites.isNotEmpty)
-            TextButton(onPressed: _clearFavorites, child: const Text("Hapus Semua", style: TextStyle(color: Colors.red))),
+            TextButton(onPressed: _clearFavorites, child: const Text("Hapus Semua", style: TextStyle(color: Color(0xFFEF4444)))),
         ],
       ),
     );
@@ -177,6 +178,9 @@ class _AccountPageState extends State<AccountPage> {
           _switch(Icons.cached, "Cache Playback", useCache, (v){ setState(()=>useCache=v); _save('cache',v); }),
           _switch(Icons.screen_rotation, "Rotasi Manual", rotasi, (v){ setState(()=>rotasi=v); _save('rot',v); }),
           _item(Icons.security, "Widevine DRM", drm, _showDRM),
+          _item(Icons.data_usage, "Kelola Sumber Data", "Pilih platform aktif", () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SourceManagerPage()));
+          }),
           _item(Icons.delete_sweep, "Bersihkan Cache", "Hapus data sementara", _clearCache),
         ]),
         const SizedBox(height: 30),
@@ -199,11 +203,11 @@ class _AccountPageState extends State<AccountPage> {
   Widget _header() => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [const Color(0xFF8B5CF6), const Color(0xFFEC4899)]),
+      gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF8B5CF6)]),
       borderRadius: BorderRadius.circular(20),
     ),
     child: const Row(children: [
-      CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.person, color: Color(0xFF8B5CF6))),
+      CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.person, color: Color(0xFF4F46E5))),
       SizedBox(width: 15),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text("User Penggemar", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
@@ -226,7 +230,7 @@ class _AccountPageState extends State<AccountPage> {
   Widget _item(IconData i, String t, String s, VoidCallback c) => TVButton(
     onTap: c,
     child: ListTile(
-      leading: Icon(i, color: const Color(0xFF8B5CF6)),
+      leading: Icon(i, color: const Color(0xFF4F46E5)),
       title: Text(t, style: const TextStyle(fontSize: 14, color: Colors.white)),
       subtitle: Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)),
       trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.white30),
@@ -236,11 +240,11 @@ class _AccountPageState extends State<AccountPage> {
   Widget _switch(IconData i, String t, bool v, Function(bool) c) => TVButton(
     onTap: () => c(!v),
     child: SwitchListTile(
-      secondary: Icon(i, color: const Color(0xFF8B5CF6)),
+      secondary: Icon(i, color: const Color(0xFF4F46E5)),
       title: Text(t, style: const TextStyle(fontSize: 14, color: Colors.white)),
       value: v,
       onChanged: c,
-      activeColor: const Color(0xFF8B5CF6),
+      activeColor: const Color(0xFF4F46E5),
     ),
   );
 }

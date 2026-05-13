@@ -13,20 +13,19 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0D1117),
-        primaryColor: const Color(0xFF8B5CF6), // Ungu premium
+        primaryColor: const Color(0xFF4F46E5),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF8B5CF6),
-          secondary: Color(0xFFEC4899), // Pink premium
-          tertiary: Color(0xFF06B6D4), // Cyan
+          primary: Color(0xFF4F46E5),
+          secondary: Color(0xFF8B5CF6),
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0D1117),
           elevation: 0,
-          centerTitle: true,
+          centerTitle: false,
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xFF0D1117),
-          selectedItemColor: Color(0xFF8B5CF6),
+          selectedItemColor: Color(0xFF4F46E5),
           unselectedItemColor: Colors.grey,
         ),
       ),
@@ -50,6 +49,8 @@ class _MainPageState extends State<MainPage> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _idx,
         onTap: (i) => setState(() => _idx = i),
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
           BottomNavigationBarItem(icon: Icon(Icons.download), label: 'UNDUHAN'),

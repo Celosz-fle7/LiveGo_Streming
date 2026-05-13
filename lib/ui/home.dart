@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'widgets.dart';
+import '../widgets.dart';
 import 'player.dart';
-import 'api_service.dart';
+import '../api_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -10,10 +10,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List ds = []; Map? banner; bool loading = true;
-  String selS = "freereels";
+  String selS = "melolo";
   String selC = "Dubbing";
   
-  final List<String> platforms = ["Dramawave", "FreeReels", "Moviebox", "Anichin", "Animelovers", "Melolo"];
+  final List<String> platforms = ["Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"];
   final List<String> categories = ["Dubbing", "Populer", "Terbaru"];
 
   @override void initState() { super.initState(); fetch(); }
@@ -50,9 +50,12 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161B22), 
-        elevation: 0, 
-        title: const Text("LiveGO", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+        title: const Text("LiveGO", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        actions: [
+          IconButton(icon: const Icon(Icons.search, color: Colors.white), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.favorite_border, color: Colors.white), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.history, color: Colors.white), onPressed: () {}),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(children: [
@@ -60,6 +63,10 @@ class _HomePageState extends State<HomePage> {
             Container(
               margin: const EdgeInsets.all(15), 
               height: 180,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
+              ),
               child: TVButton(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c)=>PlayerPage(id: banner!['id'], source: selS, title: banner!['title']))),
                 child: Stack(children: [
@@ -67,16 +74,24 @@ class _HomePageState extends State<HomePage> {
                   Container(
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(begin: Alignment.bottomCenter, colors: [Colors.black, Colors.transparent])),
                     padding: const EdgeInsets.all(15), alignment: Alignment.bottomLeft,
-                    child: Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(color: const Color(0xFF4F46E5), borderRadius: BorderRadius.circular(15)),
+                        child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)),
+                      ),
+                    ]),
                   )
                 ]),
               ),
             ),
-          _list(platforms, selS, (v){ setState(()=> selS = v.toLowerCase()); fetch(); }, Colors.red),
+          _list(platforms, selS, (v){ setState(()=> selS = v.toLowerCase()); fetch(); }, const Color(0xFF4F46E5)),
           const SizedBox(height: 10),
-          _list(categories, selC, (v){ setState(()=> selC = v); fetch(); }, Colors.red),
+          _list(categories, selC, (v){ setState(()=> selC = v); fetch(); }, const Color(0xFF4F46E5)),
           loading 
-            ? const Center(child: CircularProgressIndicator(color: Colors.red))
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
             : GridView.builder(
                 shrinkWrap: true, 
                 physics: const NeverScrollableScrollPhysics(), 
@@ -90,10 +105,23 @@ class _HomePageState extends State<HomePage> {
                 itemCount: ds.length,
                 itemBuilder: (c, i) => TVButton(
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: ds[i]['id'], source: selS, title: ds[i]['title']))),
-                  child: Column(children: [
-                    Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(ds[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
-                    Text(ds[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white))
-                  ]),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)],
+                    ),
+                    child: Column(children: [
+                      Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(ds[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
+                      const SizedBox(height: 6),
+                      Text(ds[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                      const SizedBox(height: 2),
+                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text(ds[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+                        const SizedBox(width: 6),
+                        Text(ds[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+                      ]),
+                    ]),
+                  ),
                 ),
               ),
         ]),
@@ -109,17 +137,25 @@ class _HomePageState extends State<HomePage> {
       itemCount: l.length,
       itemBuilder: (ctx, i) => Padding(
         padding: const EdgeInsets.only(right: 10),
-        child: TVButton(
-          borderRadius: 25, 
+        child: GestureDetector(
           onTap: () => o(l[i]),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 25), 
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: s == l[i].toLowerCase() || s == l[i] ? c : Colors.white10, 
-              borderRadius: BorderRadius.circular(25)
-            ),
-            child: Text(l[i], style: const TextStyle(color: Colors.white)),
+          child: Column(
+            children: [
+              Text(
+                l[i], 
+                style: TextStyle(
+                  color: s == l[i].toLowerCase() || s == l[i] ? Colors.white : Colors.white54,
+                  fontSize: 14,
+                  fontWeight: s == l[i].toLowerCase() || s == l[i] ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                height: 2,
+                width: 20,
+                color: s == l[i].toLowerCase() || s == l[i] ? c : Colors.transparent,
+              ),
+            ],
           ),
         ),
       ),
