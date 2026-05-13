@@ -14,6 +14,7 @@ class _HomePageState extends State<HomePage> {
   List terbaruList = [];
   Map? banner;
   bool loading = true;
+  bool refreshing = false;
   String selS = "";
   String selC = "Dubbing";
   List<String> platforms = [];
@@ -46,17 +47,17 @@ class _HomePageState extends State<HomePage> {
     if (platforms.isNotEmpty) fetch();
   }
 
-  Future<void> fetch() async {
+  Future<void> fetch({bool forceRefresh = false}) async {
     if (selS.isEmpty) return;
     setState(() { loading = true; hasDubbing = false; });
     
-    final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id");
+    final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id", forceRefresh: forceRefresh);
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
       setState(() => banner = bRes['data'][0]);
     }
     
     if (selC == "Dubbing") {
-      final dubRes = await ApiService.get("/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id");
+      final dubRes = await ApiService.get("/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id", forceRefresh: forceRefresh);
       if (dubRes != null && dubRes['data'] != null) {
         final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
         setState(() {
@@ -65,13 +66,13 @@ class _HomePageState extends State<HomePage> {
         });
       }
       
-      final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1");
+      final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1", forceRefresh: forceRefresh);
       if (popRes != null && popRes['data'] != null) {
         final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
         setState(() => popularList = popData);
       }
     } else {
-      final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id");
+      final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id", forceRefresh: forceRefresh);
       if (newRes != null && newRes['data'] != null) {
         final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
         setState(() => terbaruList = newData);
@@ -79,6 +80,12 @@ class _HomePageState extends State<HomePage> {
     }
     
     setState(() => loading = false);
+  }
+
+  Future<void> _onRefresh() async {
+    setState(() => refreshing = true);
+    await fetch(forceRefresh: true);
+    setState(() => refreshing = false);
   }
 
   @override
@@ -143,11 +150,16 @@ class _HomePageState extends State<HomePage> {
           IconButton(icon: const Icon(Icons.history, color: Colors.white), onPressed: () {}),
         ],
       ),
-      body: platforms.isEmpty
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        color: const Color(0xFF06B6D4),
+        backgroundColor: const Color(0xFF1F2937),
+        child: platforms.isEmpty
           ? const Center(child: Text("Tidak ada platform aktif.\nKelola Sumber Data untuk mengaktifkan.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
           : loading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4)))
               : SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   child: Column(children: [
                     // Banner
                     if (banner != null)
@@ -176,7 +188,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     
-                    // Platform Cards (6 platform, 1 baris)
+                    // Platform Cards
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 15),
                       child: Row(
@@ -213,7 +225,7 @@ class _HomePageState extends State<HomePage> {
                     
                     const SizedBox(height: 12),
                     
-                    // Category Tabs (Dubbing & Terbaru) dengan garis bawah sesuai teks
+                    // Category Tabs
                     Row(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
@@ -236,6 +248,7 @@ class _HomePageState extends State<HomePage> {
                       buildGrid(terbaruList, title: "Terbaru"),
                   ]),
                 ),
+      ),
     );
   }
 
@@ -255,7 +268,7 @@ class _HomePageState extends State<HomePage> {
           Container(
             margin: const EdgeInsets.only(top: 4),
             height: 2,
-            width: title == "Dubbing" ? 50.0 : 45.0, // panjang sesuai teks
+            width: title == "Dubbing" ? 50.0 : 45.0,
             color: isSelected ? const Color(0xFF06B6D4) : Colors.transparent,
           ),
         ],
