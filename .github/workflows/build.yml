@@ -1,0 +1,23 @@
+name: Build LiveGO APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Setup Project
+        run: |
+          rm -rf android
+          flutter create --platforms android --org com.livego .
+          sed -i 's/<application/ <application android:usesCleartextTraffic="true" /' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />' android/app/src/main/AndroidManifest.xml
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: livego-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
