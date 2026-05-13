@@ -9,10 +9,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List ds = []; Map? banner; bool loading = true;
+  List dubbingList = [];
+  List popularList = [];
+  List terbaruList = [];
+  Map? banner;
+  bool loading = true;
   String selS = "";
   String selC = "Dubbing";
   List<String> platforms = [];
+  bool hasDubbing = false;
+  
   List<String> allPlatforms = [
     "Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort",
     "Moviebox", "Anichin", "Animelovers", "RapidTV", "ReelShort"
@@ -43,35 +49,85 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> fetch() async {
     if (selS.isEmpty) return;
-    setState(() => loading = true);
+    setState(() { loading = true; hasDubbing = false; });
+    
+    // Load banner
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id");
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
       setState(() => banner = bRes['data'][0]);
     }
-
-    String p;
+    
     if (selC == "Dubbing") {
-      p = "/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id";
+      // Load Dubbing
+      final dubRes = await ApiService.get("/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id");
+      if (dubRes != null && dubRes['data'] != null) {
+        final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
+        setState(() {
+          dubbingList = dubData;
+          hasDubbing = dubData.isNotEmpty;
+        });
+      }
+      
+      // Load Popular (tetap diambil, akan ditampilkan di bawah Dubbing)
+      final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1");
+      if (popRes != null && popRes['data'] != null) {
+        final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
+        setState(() => popularList = popData);
+      }
     } else {
-      p = "/api/v2/home?category_p=$selS&lang=id";
+      // Load Terbaru
+      const newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id");
+      if (newRes != null && newRes['data'] != null) {
+        final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
+        setState(() => terbaruList = newData);
+      }
     }
     
-    final r = await ApiService.get(p);
-    if (r != null && r['data'] != null) {
-      setState(() { 
-        if (r['data'] is List) ds = r['data'];
-        else if (r['data']['dramas'] != null) ds = r['data']['dramas'];
-        else ds = [];
-        loading = false; 
-      });
-    } else {
-      setState(() => loading = false);
-    }
+    setState(() => loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     bool isT = MediaQuery.of(context).size.width > 900;
+    
+    Widget buildGrid(List list) {
+      if (list.isEmpty) {
+        return const Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(child: Text("Tidak ada konten", style: TextStyle(color: Colors.white54))),
+        );
+      }
+      return GridView.builder(
+        shrinkWrap: true, 
+        physics: const NeverScrollableScrollPhysics(), 
+        padding: const EdgeInsets.all(15), 
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isT ? 7 : 4, 
+          childAspectRatio: 0.65, 
+          crossAxisSpacing: 10, 
+          mainAxisSpacing: 10
+        ),
+        itemCount: list.length > 20 ? 20 : list.length,
+        itemBuilder: (c, i) => GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: list[i]['id'], source: selS, title: list[i]['title']))),
+          child: Container(
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
+            child: Column(children: [
+              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(list[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
+              const SizedBox(height: 6),
+              Text(list[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)),
+              const SizedBox(height: 2),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(list[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+                const SizedBox(width: 6),
+                Text(list[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+              ]),
+            ]),
+          ),
+        ),
+      );
+    }
+    
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
@@ -84,69 +140,56 @@ class _HomePageState extends State<HomePage> {
       ),
       body: platforms.isEmpty
           ? const Center(child: Text("Tidak ada platform aktif.\nKelola Sumber Data untuk mengaktifkan.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
-          : SingleChildScrollView(
-              child: Column(children: [
-                if (banner != null)
-                  Container(
-                    margin: const EdgeInsets.all(15), height: 180,
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)]),
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PlayerPage(id: banner!['id'], source: selS, title: banner!['title']))),
-                      child: Stack(children: [
-                        ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(banner!['cover'], fit: BoxFit.cover, width: double.infinity)),
-                        Container(
-                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(begin: Alignment.bottomCenter, colors: [Colors.black, Colors.transparent])),
-                          padding: const EdgeInsets.all(15),
-                          alignment: Alignment.bottomLeft,
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                            const SizedBox(height: 5),
+          : loading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
+              : SingleChildScrollView(
+                  child: Column(children: [
+                    if (banner != null)
+                      Container(
+                        margin: const EdgeInsets.all(15), height: 180,
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)]),
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PlayerPage(id: banner!['id'], source: selS, title: banner!['title']))),
+                          child: Stack(children: [
+                            ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(banner!['cover'], fit: BoxFit.cover, width: double.infinity)),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(color: const Color(0xFF4F46E5), borderRadius: BorderRadius.circular(15)),
-                              child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)),
+                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(begin: Alignment.bottomCenter, colors: [Colors.black, Colors.transparent])),
+                              padding: const EdgeInsets.all(15),
+                              alignment: Alignment.bottomLeft,
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                const SizedBox(height: 5),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(color: const Color(0xFF4F46E5), borderRadius: BorderRadius.circular(15)),
+                                  child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)),
+                                ),
+                              ]),
                             ),
                           ]),
                         ),
+                      ),
+                    _list(platforms, selS, (v){ setState(()=> selS = v.toLowerCase()); fetch(); }, const Color(0xFF4F46E5)),
+                    const SizedBox(height: 10),
+                    _list(["Dubbing", "Terbaru"], selC, (v){ setState(()=> selC = v); fetch(); }, const Color(0xFF4F46E5)),
+                    
+                    if (selC == "Dubbing")
+                      Column(children: [
+                        if (hasDubbing) ...[
+                          const Padding(padding: EdgeInsets.symmetric(horizontal: 15), child: Row(children: [Text("Dubbing (Sulih Suara)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))])),
+                          buildGrid(dubbingList),
+                        ],
+                        const Padding(padding: EdgeInsets.symmetric(horizontal: 15), child: Row(children: [Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))])),
+                        if (hasDubbing) const SizedBox(height: 10),
+                        buildGrid(popularList),
+                      ])
+                    else
+                      Column(children: [
+                        const Padding(padding: EdgeInsets.symmetric(horizontal: 15), child: Row(children: [Text("Terbaru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))])),
+                        buildGrid(terbaruList),
                       ]),
-                    ),
-                  ),
-                _list(platforms, selS, (v){ setState(()=> selS = v.toLowerCase()); fetch(); }, const Color(0xFF4F46E5)),
-                const SizedBox(height: 10),
-                _list(["Dubbing", "Terbaru"], selC, (v){ setState(()=> selC = v); fetch(); }, const Color(0xFF4F46E5)),
-                loading 
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
-                  : GridView.builder(
-                      shrinkWrap: true, 
-                      physics: const NeverScrollableScrollPhysics(), 
-                      padding: const EdgeInsets.all(15), 
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: isT ? 7 : 4, 
-                        childAspectRatio: 0.65, 
-                        crossAxisSpacing: 10, 
-                        mainAxisSpacing: 10
-                      ),
-                      itemCount: ds.length,
-                      itemBuilder: (c, i) => GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: ds[i]['id'], source: selS, title: ds[i]['title']))),
-                        child: Container(
-                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
-                          child: Column(children: [
-                            Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(ds[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
-                            const SizedBox(height: 6),
-                            Text(ds[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)),
-                            const SizedBox(height: 2),
-                            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Text(ds[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)),
-                              const SizedBox(width: 6),
-                              Text(ds[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8)),
-                            ]),
-                          ]),
-                        ),
-                      ),
-                    ),
-              ]),
-            ),
+                  ]),
+                ),
     );
   }
 
