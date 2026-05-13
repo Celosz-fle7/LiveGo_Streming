@@ -45,13 +45,13 @@ class _HomePageState extends State<HomePage> {
     if (selS.isEmpty) return;
     setState(() => loading = true);
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id");
-    if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) setState(() => banner = bRes['data'][0]);
+    if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
+      setState(() => banner = bRes['data'][0]);
+    }
 
     String p;
     if (selC == "Dubbing") {
       p = "/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id";
-    } else if (selC == "Populer") {
-      p = "/api/v2/discover?category_p=$selS&lang=id&page=1";
     } else {
       p = "/api/v2/home?category_p=$selS&lang=id";
     }
@@ -69,7 +69,8 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     bool isT = MediaQuery.of(context).size.width > 900;
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
@@ -90,20 +91,61 @@ class _HomePageState extends State<HomePage> {
                     margin: const EdgeInsets.all(15), height: 180,
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)]),
                     child: GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c)=>PlayerPage(id: banner!['id'], source: selS, title: banner!['title']))),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PlayerPage(id: banner!['id'], source: selS, title: banner!['title']))),
                       child: Stack(children: [
                         ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(banner!['cover'], fit: BoxFit.cover, width: double.infinity)),
-                        Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(begin: Alignment.bottomCenter, colors: [Colors.black, Colors.transparent])), padding: const EdgeInsets.all(15), alignment: Alignment.bottomLeft, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), const SizedBox(height: 5), Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: const Color(0xFF4F46E5), borderRadius: BorderRadius.circular(15)), child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)))])),
+                        Container(
+                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(begin: Alignment.bottomCenter, colors: [Colors.black, Colors.transparent])),
+                          padding: const EdgeInsets.all(15),
+                          alignment: Alignment.bottomLeft,
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 5),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(color: const Color(0xFF4F46E5), borderRadius: BorderRadius.circular(15)),
+                              child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)),
+                            ),
+                          ]),
+                        ),
                       ]),
                     ),
                   ),
                 _list(platforms, selS, (v){ setState(()=> selS = v.toLowerCase()); fetch(); }, const Color(0xFF4F46E5)),
                 const SizedBox(height: 10),
-                _list(["Dubbing", "Populer", "Terbaru"], selC, (v){ setState(()=> selC = v); fetch(); }, const Color(0xFF4F46E5)),
-                loading ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5))) : GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.all(15), gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: isT ? 7 : 4, childAspectRatio: 0.65, crossAxisSpacing: 10, mainAxisSpacing: 10), itemCount: ds.length, itemBuilder: (c, i) => GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: ds[i]['id'], source: selS, title: ds[i]['title']))),
-                  child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]), child: Column(children: [Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(ds[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))), const SizedBox(height: 6), Text(ds[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)), const SizedBox(height: 2), Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(ds[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)), const SizedBox(width: 6), Text(ds[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8))])])),
-                )),
+                _list(["Dubbing", "Terbaru"], selC, (v){ setState(()=> selC = v); fetch(); }, const Color(0xFF4F46E5)),
+                loading 
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
+                  : GridView.builder(
+                      shrinkWrap: true, 
+                      physics: const NeverScrollableScrollPhysics(), 
+                      padding: const EdgeInsets.all(15), 
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: isT ? 7 : 4, 
+                        childAspectRatio: 0.65, 
+                        crossAxisSpacing: 10, 
+                        mainAxisSpacing: 10
+                      ),
+                      itemCount: ds.length,
+                      itemBuilder: (c, i) => GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: ds[i]['id'], source: selS, title: ds[i]['title']))),
+                        child: Container(
+                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
+                          child: Column(children: [
+                            Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(ds[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
+                            const SizedBox(height: 6),
+                            Text(ds[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                            const SizedBox(height: 2),
+                            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              Text(ds[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+                              const SizedBox(width: 6),
+                              Text(ds[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+                            ]),
+                          ]),
+                        ),
+                      ),
+                    ),
+              ]),
             ),
     );
   }
@@ -111,12 +153,17 @@ class _HomePageState extends State<HomePage> {
   Widget _list(List l, String s, Function(String) o, Color c) => SizedBox(
     height: 40,
     child: ListView.builder(
-      scrollDirection: Axis.horizontal, padding: const EdgeInsets.only(left: 15), itemCount: l.length,
+      scrollDirection: Axis.horizontal, 
+      padding: const EdgeInsets.only(left: 15), 
+      itemCount: l.length,
       itemBuilder: (ctx, i) => Padding(
         padding: const EdgeInsets.only(right: 10),
         child: GestureDetector(
           onTap: () => o(l[i]),
-          child: Column(children: [Text(l[i], style: TextStyle(color: s == l[i].toLowerCase() || s == l[i] ? Colors.white : Colors.white54, fontSize: 14, fontWeight: s == l[i].toLowerCase() || s == l[i] ? FontWeight.bold : FontWeight.normal)), Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 20, color: s == l[i].toLowerCase() || s == l[i] ? c : Colors.transparent)]),
+          child: Column(children: [
+            Text(l[i], style: TextStyle(color: s == l[i].toLowerCase() || s == l[i] ? Colors.white : Colors.white54, fontSize: 14, fontWeight: s == l[i].toLowerCase() || s == l[i] ? FontWeight.bold : FontWeight.normal)),
+            Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 20, color: s == l[i].toLowerCase() || s == l[i] ? c : Colors.transparent),
+          ]),
         ),
       ),
     ),
