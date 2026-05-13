@@ -22,8 +22,9 @@ class DatabaseHelper {
     
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -37,7 +38,9 @@ class DatabaseHelper {
         episode_id TEXT NOT NULL,
         episode_number INTEGER NOT NULL,
         position_seconds INTEGER DEFAULT 0,
-        last_watched INTEGER NOT NULL
+        duration_seconds INTEGER DEFAULT 0,
+        last_watched INTEGER NOT NULL,
+        platform TEXT NOT NULL
       )
     ''');
     
@@ -48,20 +51,50 @@ class DatabaseHelper {
         drama_title TEXT NOT NULL,
         drama_poster TEXT,
         total_episodes INTEGER DEFAULT 0,
+        platform TEXT NOT NULL,
         added_at INTEGER NOT NULL
       )
     ''');
   }
 
-  // Riwayat
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE history ADD COLUMN platform TEXT DEFAULT ""');
+      await db.execute('ALTER TABLE favorites ADD COLUMN platform TEXT DEFAULT ""');
+    }
+  }
+
+  // ==================== RIWAYAT ====================
   Future<void> addToHistory(Map<String, dynamic> history) async {
     final db = await database;
     await db.insert('history', history, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  Future<void> updateHistoryPosition(String episodeId, int positionSeconds) async {
+    final db = await database;
+    await db.update(
+      'history',
+      {'position_seconds': positionSeconds, 'last_watched': DateTime.now().millisecondsSinceEpoch},
+      where: 'episode_id = ?',
+      whereArgs: [episodeId],
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getHistory() async {
     final db = await database;
     return await db.query('history', orderBy: 'last_watched DESC', limit: 50);
+  }
+
+  Future<Map<String, dynamic>?> getResumeWatching(String dramaId) async {
+    final db = await database;
+    final result = await db.query(
+      'history',
+      where: 'drama_id = ?',
+      whereArgs: [dramaId],
+      orderBy: 'last_watched DESC',
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
   }
 
   Future<void> deleteHistoryItem(int id) async {
@@ -74,7 +107,7 @@ class DatabaseHelper {
     await db.delete('history');
   }
 
-  // Favorit
+  // ==================== FAVORIT ====================
   Future<void> addToFavorites(Map<String, dynamic> favorite) async {
     final db = await database;
     await db.insert('favorites', favorite, conflictAlgorithm: ConflictAlgorithm.replace);
