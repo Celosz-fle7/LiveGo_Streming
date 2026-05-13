@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'ui/home.dart';
 import 'ui/account.dart';
 import 'ui/downloads.dart';
+import 'ui/api_service.dart';
 
-void main() => runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.init(); // Auto clean cache saat startup
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

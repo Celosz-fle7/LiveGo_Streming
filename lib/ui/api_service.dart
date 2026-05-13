@@ -8,6 +8,11 @@ class ApiService {
   static const String secret = "22dfb2b849814054af0491ff2ee3ffe33989313d7d38e97aae659757a4cf8960";
   static final CacheService _cache = CacheService();
 
+  // Panggil sekali saat aplikasi start
+  static Future<void> init() async {
+    await _cache.autoCleanIfNeeded();
+  }
+
   static Future<dynamic> get(String path, {bool forceRefresh = false}) async {
     // Cek cache terlebih dahulu (kecuali force refresh)
     if (!forceRefresh) {
