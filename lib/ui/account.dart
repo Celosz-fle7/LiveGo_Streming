@@ -163,88 +163,152 @@ class _AccountPageState extends State<AccountPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: ListView(padding: const EdgeInsets.all(15), children: [
-        const SizedBox(height: 40),
-        _header(),
         const SizedBox(height: 20),
-        _label("KOLEKSI CEPAT"),
-        _card([
-          _item(Icons.history, "Riwayat", "Lanjutkan tontonan", _showHistoryDialog),
-          _item(Icons.favorite, "Favorit", "Daftar favorit Anda", _showFavoritesDialog),
+        
+        // Logo + Header
+        Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF06B6D4)]),
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: const Center(
+                child: Text("L", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "LiveGO",
+              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // User Profile Card
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF06B6D4)]),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(children: [
+            const CircleAvatar(backgroundColor: Colors.white, radius: 30, child: Icon(Icons.person, color: Color(0xFF4F46E5), size: 30)),
+            const SizedBox(width: 15),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text("User Penggemar", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
+              const Text("Selamat datang kembali", style: TextStyle(color: Colors.white70, fontSize: 12)),
+            ]),
+          ]),
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // KOLEKSI CEPAT
+        _sectionCard("📁 KOLEKSI CEPAT", [
+          _menuItem(Icons.history, "Riwayat", "${_history.length} item", _showHistoryDialog),
+          _menuItem(Icons.favorite, "Favorit", "${_favorites.length} drama", _showFavoritesDialog),
         ]),
-        _label("PENGATURAN"),
-        _card([
-          _item(Icons.settings, "Tampilan & Navigasi", nav, _showNav),
-          _switch(Icons.image, "Background Poster", bgPoster, (v){ setState(()=>bgPoster=v); _save('bg',v); }),
-          _switch(Icons.cached, "Cache Playback", useCache, (v){ setState(()=>useCache=v); _save('cache',v); }),
-          _switch(Icons.screen_rotation, "Rotasi Manual", rotasi, (v){ setState(()=>rotasi=v); _save('rot',v); }),
-          _item(Icons.security, "Widevine DRM", drm, _showDRM),
-          _item(Icons.data_usage, "Kelola Sumber Data", "Pilih platform aktif", () {
+        
+        const SizedBox(height: 16),
+        
+        // PENGATURAN
+        _sectionCard("⚙️ PENGATURAN", [
+          _settingItem(Icons.display_settings, "Tampilan & Navigasi", nav, _showNav),
+          _switchItem(Icons.image, "Background Poster", bgPoster, (v){ setState(()=>bgPoster=v); _save('bg',v); }),
+          _switchItem(Icons.cached, "Cache Playback", useCache, (v){ setState(()=>useCache=v); _save('cache',v); }),
+          _switchItem(Icons.screen_rotation, "Rotasi Manual", rotasi, (v){ setState(()=>rotasi=v); _save('rot',v); }),
+          _settingItem(Icons.security, "Widevine DRM", drm, _showDRM),
+          _settingItem(Icons.data_usage, "Kelola Sumber Data", "Atur platform aktif", () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SourceManagerPage()));
           }),
-          _item(Icons.delete_sweep, "Bersihkan Cache", "Hapus data sementara", _clearCache),
+          _settingItem(Icons.delete_sweep, "Bersihkan Cache", "Hapus data sementara", _clearCache),
         ]),
-        const SizedBox(height: 30),
+        
+        const SizedBox(height: 16),
+        
+        // VERSI
         Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: const Color(0xFF1F2937), borderRadius: BorderRadius.circular(15)),
-          child: Column(
-            children: [
-              const Text("LiveGO", style: TextStyle(color: Colors.white54, fontSize: 12)),
-              const SizedBox(height: 5),
-              Text("Versi 1.0.0", style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 10)),
-            ],
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2937),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Center(
+            child: Text(
+              "LiveGO Version 1.0.0",
+              style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 10),
+            ),
           ),
         ),
-        const SizedBox(height: 30),
+        
+        const SizedBox(height: 20),
       ]),
     );
   }
 
-  Widget _header() => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF8B5CF6)]),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: const Row(children: [
-      CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.person, color: Color(0xFF4F46E5))),
-      SizedBox(width: 15),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text("User Penggemar", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
-        Text("Selamat datang kembali", style: TextStyle(color: Colors.white70, fontSize: 12)),
-      ]),
-    ]),
-  );
+  Widget _sectionCard(String title, List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F2937),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
+              title,
+              style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ),
+          ...children,
+        ],
+      ),
+    );
+  }
 
-  Widget _label(String t) => Padding(
-    padding: const EdgeInsets.only(left: 10, bottom: 8, top: 10),
-    child: Text(t, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
-  );
+  Widget _menuItem(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    return TVButton(
+      onTap: onTap,
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFF06B6D4)),
+        title: Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.white54)),
+        trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.white30),
+      ),
+    );
+  }
 
-  Widget _card(List<Widget> i) => Container(
-    decoration: BoxDecoration(color: const Color(0xFF1F2937), borderRadius: BorderRadius.circular(15)),
-    margin: const EdgeInsets.only(bottom: 15),
-    child: Column(children: i),
-  );
+  Widget _settingItem(IconData icon, String title, String value, VoidCallback onTap) {
+    return TVButton(
+      onTap: onTap,
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFF06B6D4)),
+        title: Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
+        subtitle: Text(value, style: const TextStyle(fontSize: 11, color: Colors.white54)),
+        trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.white30),
+      ),
+    );
+  }
 
-  Widget _item(IconData i, String t, String s, VoidCallback c) => TVButton(
-    onTap: c,
-    child: ListTile(
-      leading: Icon(i, color: const Color(0xFF4F46E5)),
-      title: Text(t, style: const TextStyle(fontSize: 14, color: Colors.white)),
-      subtitle: Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-      trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.white30),
-    ),
-  );
-
-  Widget _switch(IconData i, String t, bool v, Function(bool) c) => TVButton(
-    onTap: () => c(!v),
-    child: SwitchListTile(
-      secondary: Icon(i, color: const Color(0xFF4F46E5)),
-      title: Text(t, style: const TextStyle(fontSize: 14, color: Colors.white)),
-      value: v,
-      onChanged: c,
-      activeColor: const Color(0xFF4F46E5),
-    ),
-  );
+  Widget _switchItem(IconData icon, String title, bool value, Function(bool) onChanged) {
+    return TVButton(
+      onTap: () => onChanged(!value),
+      child: SwitchListTile(
+        secondary: Icon(icon, color: const Color(0xFF06B6D4)),
+        title: Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
+        value: value,
+        onChanged: onChanged,
+        activeColor: const Color(0xFF06B6D4),
+      ),
+    );
+  }
 }
