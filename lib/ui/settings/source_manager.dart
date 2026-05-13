@@ -15,13 +15,18 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
   bool _isChecking = false;
   String _lastCheckTime = "";
   
-  final List<Map<String, String>> _allPlatforms = [
+  // 6 platform utama
+  final List<Map<String, String>> _primaryPlatforms = [
     {"id": "melolo", "name": "Melolo"},
     {"id": "freereels", "name": "FreeReels"},
     {"id": "shortmax", "name": "ShortMax"},
     {"id": "dramawave", "name": "DramaWave"},
     {"id": "netshort", "name": "NetShort"},
     {"id": "goodshort", "name": "GoodShort"},
+  ];
+  
+  // 18 platform cadangan
+  final List<Map<String, String>> _backupPlatforms = [
     {"id": "moviebox", "name": "Moviebox"},
     {"id": "anichin", "name": "Anichin"},
     {"id": "animelovers", "name": "Animelovers"},
@@ -46,24 +51,45 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
   void initState() {
     super.initState();
     _loadSources();
-    _checkAllStatuses();
+    // Jalankan failover di background
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAllStatuses();
+    });
   }
 
   Future<void> _loadSources() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _sources = _allPlatforms.map((p) {
-        final isActive = prefs.getBool('source_${p['id']}') ?? true;
-        return SourceItem(
-          id: p['id']!,
-          name: p['name']!,
-          isActive: isActive,
-          status: "unknown",
-          statusColor: "⚪",
-          statusMessage: "Belum dicek",
-        );
-      }).toList();
-    });
+    final List<SourceItem> temp = [];
+    
+    // Primary: default aktif
+    for (var p in _primaryPlatforms) {
+      final isActive = prefs.getBool('source_${p['id']}') ?? true;
+      temp.add(SourceItem(
+        id: p['id']!,
+        name: p['name']!,
+        isActive: isActive,
+        status: "unknown",
+        statusColor: "⚪",
+        statusMessage: "Belum dicek",
+        isPrimary: true,
+      ));
+    }
+    
+    // Backup: default nonaktif
+    for (var p in _backupPlatforms) {
+      final isActive = prefs.getBool('source_${p['id']}') ?? false;
+      temp.add(SourceItem(
+        id: p['id']!,
+        name: p['name']!,
+        isActive: isActive,
+        status: "unknown",
+        statusColor: "⚪",
+        statusMessage: "Belum dicek",
+        isPrimary: false,
+      ));
+    }
+    
+    setState(() => _sources = temp);
   }
 
   Future<void> _checkAllStatuses() async {
@@ -72,24 +98,24 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
       _lastCheckTime = DateTime.now().toString().substring(11, 16);
     });
     
+    // 1. Cek status semua platform
     for (int i = 0; i < _sources.length; i++) {
       final result = await PlatformChecker.checkStatus(_sources[i].id);
       setState(() {
         _sources[i].status = result['status'];
         _sources[i].statusColor = result['color'];
         _sources[i].statusMessage = result['message'];
-        
-        // Auto nonaktif jika server down
-        if (result['status'] == 'down' && _sources[i].isActive) {
-          _sources[i].isActive = false;
-          _showNotification("${_sources[i].name} server down, otomatis dinonaktifkan");
-        }
       });
     }
     
+    // 2. Jalankan failover (auto ganti platform mati dengan cadangan)
+    await PlatformChecker.checkAllAndFailover();
+    
+    // 3. Reload sources untuk refleksi perubahan
+    await _loadSources();
+    
     setState(() => _isChecking = false);
-    _saveSources();
-    _showNotification("Pengecekan selesai");
+    _showNotification("Pengecekan selesai, failover otomatis telah dijalankan");
   }
 
   void _showNotification(String message) {
@@ -103,6 +129,7 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
     for (var source in _sources) {
       await prefs.setBool('source_${source.id}', source.isActive);
     }
+    _showNotification("Pengaturan sumber disimpan");
   }
 
   Future<void> _checkSingleStatus(int index) async {
@@ -128,8 +155,8 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final activeCount = _sources.where((s) => s.isActive).length;
-    final downCount = _sources.where((s) => s.status == 'down').length;
+    final primaryCount = _sources.where((s) => s.isPrimary && s.isActive).length;
+    final backupActiveCount = _sources.where((s) => !s.isPrimary && s.isActive).length;
     
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
@@ -160,15 +187,15 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text("Total Platform: ${_sources.length}", style: const TextStyle(color: Colors.white)),
-                  Text("Aktif: $activeCount | Down: $downCount", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text("Platform Utama Aktif: $primaryCount/6", style: const TextStyle(color: Colors.white)),
+                  Text("Platform Cadangan Aktif: $backupActiveCount", style: const TextStyle(color: Colors.white54, fontSize: 12)),
                   if (_lastCheckTime.isNotEmpty)
                     Text("Terakhir cek: $_lastCheckTime", style: const TextStyle(color: Colors.white54, fontSize: 10)),
                 ]),
                 ElevatedButton.icon(
                   onPressed: _isChecking ? null : _checkAllStatuses,
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text("Cek Semua"),
+                  label: const Text("Cek & Failover"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4F46E5),
                     minimumSize: const Size(100, 36),
@@ -187,8 +214,9 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
                 return Container(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1F2937),
+                    color: source.isPrimary ? const Color(0xFF1F2937) : const Color(0xFF0D1117),
                     borderRadius: BorderRadius.circular(12),
+                    border: source.isPrimary ? null : Border.all(color: Colors.white12, width: 0.5),
                   ),
                   child: ListTile(
                     leading: Text(source.statusColor, style: const TextStyle(fontSize: 20)),
@@ -206,6 +234,9 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (!source.isPrimary && source.isActive)
+                          const Icon(Icons.star, color: Color(0xFF06B6D4), size: 16),
+                        const SizedBox(width: 8),
                         IconButton(
                           icon: const Icon(Icons.refresh, size: 18, color: Colors.white54),
                           onPressed: () => _checkSingleStatus(index),
@@ -227,7 +258,7 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
             ),
           ),
           
-          // Keterangan warna
+          // Keterangan
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.all(16),
@@ -237,13 +268,18 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
             ),
             child: Column(
               children: [
-                const Text("📝 Keterangan Indikator:", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                const Text("📝 Keterangan:", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                  _legendItem("🟢", "Normal", "Server aktif & cepat"),
-                  _legendItem("🟡", "Lambat", "Response >3 detik"),
-                  _legendItem("🔴", "Down", "Server error/tidak merespon (otomatis nonaktif)"),
-                ]),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 16,
+                  children: [
+                    _legendItem("🟢", "Normal", "Server aktif"),
+                    _legendItem("🟡", "Lambat", "Response >3 detik"),
+                    _legendItem("🔴", "Down", "Auto nonaktif + failover"),
+                    _legendItem("⭐", "Cadangan", "Aktif karena failover"),
+                  ],
+                ),
               ],
             ),
           ),
@@ -253,11 +289,19 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
   }
 
   Widget _legendItem(String icon, String title, String desc) {
-    return Column(children: [
-      Text(icon, style: const TextStyle(fontSize: 20)),
-      Text(title, style: const TextStyle(color: Colors.white, fontSize: 11)),
-      Text(desc, style: const TextStyle(color: Colors.white54, fontSize: 9), textAlign: TextAlign.center),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(icon, style: const TextStyle(fontSize: 16)),
+        const SizedBox(width: 4),
+        Column(
+          children: [
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 11)),
+            Text(desc, style: const TextStyle(color: Colors.white54, fontSize: 9)),
+          ],
+        ),
+      ],
+    );
   }
 }
 
@@ -268,6 +312,7 @@ class SourceItem {
   String status;
   String statusColor;
   String statusMessage;
+  final bool isPrimary;
   
   SourceItem({
     required this.id,
@@ -276,5 +321,6 @@ class SourceItem {
     required this.status,
     required this.statusColor,
     required this.statusMessage,
+    required this.isPrimary,
   });
 }
