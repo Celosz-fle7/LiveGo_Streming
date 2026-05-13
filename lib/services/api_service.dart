@@ -3,7 +3,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Menggunakan domain murni tanpa https:// karena akan di-parse menggunakan Uri.https
+  // Domain murni tanpa skema http/https dan tanpa path garis miring
   static const String domain = 'api-drama.dobda.id';
   static const String secret = "22dfb2b849814054af0491ff2ee3ffe33989313d7d38e97aae659757a4cf8960";
 
@@ -11,10 +11,10 @@ class ApiService {
     try {
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       
-      // PERBAIKAN UTAMA: Menyusun URI menggunakan skema https resmi bawaan Flutter
+      // Menggunakan Uri.https secara mutlak untuk menyusun dobda.id?...
       final uri = Uri.https(domain, path, params);
       
-      // FORMULA SIGNATURE POSTMAN ASLI: METHOD:PATH:TIMESTAMP
+      // FORMULA SIGNATURE SESUAI POSTMAN REPO: METHOD:PATH:TIMESTAMP
       final String payload = "GET:$path:$timestamp";
       
       final key = utf8.encode(secret);
