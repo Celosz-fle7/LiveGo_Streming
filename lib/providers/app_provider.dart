@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 
-// Diarahkan ke freereels karena platform melolo/shortmax sedang tidak stabil/restricted
 final platformProvider = StateProvider<String>((ref) => "freereels");
 final categoryProvider = StateProvider<String>((ref) => "Reelshort Home");
 
@@ -27,7 +26,6 @@ final dramasProvider = FutureProvider<List<dynamic>>((ref) async {
   
   if (data != null && data['success'] == true && data['data'] != null) {
     var rawData = data['data'];
-    // Ekstraksi array secara aman agar tidak terjadi crash null di UI
     if (rawData is Map && rawData.containsKey('list')) {
       return rawData['list'] as List<dynamic>;
     } else if (rawData is List) {

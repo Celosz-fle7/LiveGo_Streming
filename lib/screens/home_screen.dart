@@ -13,13 +13,17 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF090D1A),
       appBar: AppBar(
-        title: Text(isTV ? 'LiveGO [TV Test]' : 'LiveGO [HP Test]', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        title: Text(isTV ? 'LiveGO [TV Mode]' : 'LiveGO [HP Mode]', 
+            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF090D1A),
       ),
       body: dramasAsync.when(
         data: (list) {
           if (list.isEmpty) {
-            return const Center(child: Text('Tidak ada drama aktif di platform ini.', style: TextStyle(color: Colors.white70)));
+            return const Center(
+              child: Text('Tidak ada drama aktif di platform ini.', 
+                  style: TextStyle(color: Colors.white70)),
+            );
           }
           return GridView.builder(
             padding: const EdgeInsets.all(12),
@@ -45,7 +49,9 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(4.0),
-                      child: Text(item['title'] ?? 'No Title', maxLines: 1, style: const TextStyle(color: Colors.white, fontSize: 11), overflow: TextOverflow.ellipsis),
+                      child: Text(item['title'] ?? 'No Title', maxLines: 1, 
+                          style: const TextStyle(color: Colors.white, fontSize: 11), 
+                          overflow: TextOverflow.ellipsis),
                     )
                   ],
                 ),
@@ -53,7 +59,13 @@ class HomeScreen extends ConsumerWidget {
             },
           );
         },
-        error: (err, stack) => Center(child: Padding(padding: const EdgeInsets.all(16), child: Text('Error API:\n$err', style: const TextStyle(color: Colors.red), textAlign: TextAlign.center))),
+        error: (err, stack) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('Error Panggilan API:\n$err', 
+                style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+          ),
+        ),
         loading: () => const Center(child: CircularProgressIndicator(color: Colors.red)),
       ),
     );

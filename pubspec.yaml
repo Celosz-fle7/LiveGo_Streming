@@ -1,5 +1,5 @@
 name: livego_streaming
-description: "Aplikasi Streaming Dracin Fresh Test"
+description: "Aplikasi Streaming Dracin Flat Architecture"
 publish_to: 'none'
 version: 1.0.0+1
 environment:

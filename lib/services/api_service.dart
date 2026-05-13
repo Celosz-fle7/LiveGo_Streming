@@ -35,7 +35,7 @@ class ApiService {
         throw Exception("Server Error ${response.statusCode}: ${response.body}");
       }
     } catch (e) {
-      throw Exception("Koneksi API Gagal: $e");
+      throw Exception("Koneksi Macet: $e");
     }
   }
 }
