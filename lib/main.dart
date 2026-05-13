@@ -7,10 +7,29 @@ void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+  
   @override Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: const Color(0xFF0D1117), primaryColor: Colors.red),
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0D1117),
+        primaryColor: const Color(0xFF8B5CF6), // Ungu premium
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF8B5CF6),
+          secondary: Color(0xFFEC4899), // Pink premium
+          tertiary: Color(0xFF06B6D4), // Cyan
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0D1117),
+          elevation: 0,
+          centerTitle: true,
+        ),
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: Color(0xFF0D1117),
+          selectedItemColor: Color(0xFF8B5CF6),
+          unselectedItemColor: Colors.grey,
+        ),
+      ),
       home: const MainPage(),
     );
   }
@@ -31,8 +50,6 @@ class _MainPageState extends State<MainPage> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _idx,
         onTap: (i) => setState(() => _idx = i),
-        backgroundColor: const Color(0xFF161B22),
-        selectedItemColor: Colors.red,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
           BottomNavigationBarItem(icon: Icon(Icons.download), label: 'UNDUHAN'),

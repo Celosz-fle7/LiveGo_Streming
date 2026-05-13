@@ -196,3 +196,11 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 }
+// Ganti fungsi _toggleFullscreen dengan ini:
+  void _toggleFullscreen() {
+    // Tetap di potret, tidak usah ke landscape
+    // Hanya zoom in/out atau biarkan saja
+    setState(() {
+      videoFit = videoFit == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
+    });
+  }
