@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/api_service.dart'; // Memanggil file baru
+import '../services/api_service.dart';
 
 final platformProvider = StateProvider<String>((ref) => "freereels");
 final categoryProvider = StateProvider<String>((ref) => "Reelshort Home");
@@ -22,16 +22,36 @@ final dramasProvider = FutureProvider<List<dynamic>>((ref) async {
     params["page"] = "1";
   }
 
-  // Menggunakan ApiService baru yang sudah menggunakan skema Uri.https resmi
-  final data = await ApiService.request(path, params);
-  
-  if (data != null && data['success'] == true && data['data'] != null) {
-    var rawData = data['data'];
-    if (rawData is Map && rawData.containsKey('list')) {
-      return rawData['list'] as List<dynamic>;
-    } else if (rawData is List) {
-      return rawData;
+  try {
+    final data = await ApiService.request(path, params);
+    
+    if (data != null && data['success'] == true && data['data'] != null) {
+      var rawData = data['data'];
+      
+      // DEEP PARSER: Membongkar lapisan JSON server secara otomatis sesuai spesifikasi backend
+      if (rawData is List) {
+        return rawData;
+      } else if (rawData is Map) {
+        if (rawData.containsKey('list') && rawData['list'] is List) {
+          return rawData['list'] as List<dynamic>;
+        } else if (rawData.containsKey('dramas') && rawData['dramas'] is List) {
+          return rawData['dramas'] as List<dynamic>;
+        } else if (rawData.containsKey('data') && rawData['data'] is List) {
+          return rawData['data'] as List<dynamic>;
+        }
+        
+        // Antisipasi jika data dibungkus dalam struktur objek map beranda bertingkat
+        for (var value in rawData.values) {
+          if (value is List) {
+            return value;
+          } else if (value is Map && value.containsKey('list') && value['list'] is List) {
+            return value['list'] as List<dynamic>;
+          }
+        }
+      }
     }
+    return [];
+  } catch (e) {
+    throw Exception("Gagal memproses struktur JSON drama: $e");
   }
-  return [];
 });
