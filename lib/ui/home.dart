@@ -19,6 +19,8 @@ class _HomePageState extends State<HomePage> {
   String selC = "Dubbing";
   List<String> platforms = [];
   bool hasDubbing = false;
+  int _loadingProgress = 0;
+  int _totalTasks = 0;
   
   final List<String> allPlatforms = [
     "Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"
@@ -49,34 +51,54 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> fetch({bool forceRefresh = false}) async {
     if (selS.isEmpty) return;
-    setState(() { loading = true; hasDubbing = false; });
+    setState(() { 
+      loading = true; 
+      hasDubbing = false;
+      _loadingProgress = 0;
+      _totalTasks = 0;
+    });
     
+    // Hitung total tugas yang akan dijalankan
+    int totalTasks = 1; // banner
+    totalTasks += 2; // dubbing + popular
+    setState(() => _totalTasks = totalTasks);
+    
+    // Load banner
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id", forceRefresh: forceRefresh);
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
       setState(() => banner = bRes['data'][0]);
     }
+    setState(() => _loadingProgress++);
     
     if (selC == "Dubbing") {
+      // Load Dubbing
       final dubRes = await ApiService.get("/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id", forceRefresh: forceRefresh);
       if (dubRes != null && dubRes['data'] != null) {
         final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
         setState(() {
           dubbingList = dubData;
           hasDubbing = dubData.isNotEmpty;
+          _loadingProgress++;
         });
+      } else {
+        setState(() => _loadingProgress++);
       }
       
+      // Load Popular
       final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1", forceRefresh: forceRefresh);
       if (popRes != null && popRes['data'] != null) {
         final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
         setState(() => popularList = popData);
       }
+      setState(() => _loadingProgress++);
     } else {
+      // Load Terbaru
       final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id", forceRefresh: forceRefresh);
       if (newRes != null && newRes['data'] != null) {
         final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
         setState(() => terbaruList = newData);
       }
+      setState(() => _loadingProgress++);
     }
     
     setState(() => loading = false);
@@ -157,7 +179,19 @@ class _HomePageState extends State<HomePage> {
         child: platforms.isEmpty
           ? const Center(child: Text("Tidak ada platform aktif.\nKelola Sumber Data untuk mengaktifkan.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
           : loading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4)))
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(color: Color(0xFF06B6D4)),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Memuat data... ($_loadingProgress/$_totalTasks)",
+                        style: const TextStyle(color: Colors.white54),
+                      ),
+                    ],
+                  ),
+                )
               : SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: Column(children: [
