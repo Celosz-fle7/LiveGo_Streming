@@ -68,7 +68,7 @@ class _HomePageState extends State<HomePage> {
         });
       }
       
-      // Load Popular (tetap diambil, akan ditampilkan di bawah Dubbing)
+      // Load Popular
       final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1");
       if (popRes != null && popRes['data'] != null) {
         final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
@@ -76,7 +76,7 @@ class _HomePageState extends State<HomePage> {
       }
     } else {
       // Load Terbaru
-      const newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id");
+      final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id");
       if (newRes != null && newRes['data'] != null) {
         final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
         setState(() => terbaruList = newData);
