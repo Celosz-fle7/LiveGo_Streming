@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-import '../widgets.dart';
+import 'widgets.dart';
 import 'api_service.dart';
 
 class PlayerPage extends StatefulWidget {
@@ -85,7 +85,7 @@ class _PlayerPageState extends State<PlayerPage> {
   void _showQualDialog() {
     if (videoData == null) return;
     showDialog(context: context, builder: (c) => AlertDialog(
-      backgroundColor: const Color(0xFF161B22),
+      backgroundColor: const Color(0xFF1F2937),
       title: const Text("Pilih Kualitas", style: TextStyle(color: Colors.white)),
       content: Column(mainAxisSize: MainAxisSize.min, children: (videoData!['streams'] as List).map((s) => ListTile(
         title: Text(s['quality'] ?? 'Auto', style: const TextStyle(color: Colors.white)),
@@ -101,12 +101,9 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _toggleFullscreen() {
-    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    if (isLandscape) {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    } else {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-    }
+    setState(() {
+      videoFit = videoFit == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
+    });
   }
 
   @override void dispose() { 
@@ -119,7 +116,7 @@ class _PlayerPageState extends State<PlayerPage> {
     bool isT = MediaQuery.of(context).size.width > 900;
     return Scaffold(
       backgroundColor: Colors.black,
-      body: d == null ? const Center(child: CircularProgressIndicator(color: Colors.red)) : 
+      body: d == null ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5))) : 
       SingleChildScrollView(
         child: Column(
           children: [
@@ -132,9 +129,9 @@ class _PlayerPageState extends State<PlayerPage> {
                     Container(color: Colors.black, child: Center(
                       child: _v != null && _v!.value.isInitialized 
                         ? FittedBox(fit: videoFit, child: SizedBox(width: _v!.value.size.width, height: _v!.value.size.height, child: VideoPlayer(_v!))) 
-                        : (loading ? const CircularProgressIndicator(color: Colors.red) : const Text("Tidak dapat memuat video", style: TextStyle(color: Colors.white))))),
+                        : (loading ? const CircularProgressIndicator(color: Color(0xFF4F46E5)) : const Text("Tidak dapat memuat video", style: TextStyle(color: Colors.white))))),
                     if (showOverlay && _v != null && _v!.value.isInitialized) _buildOverlay(),
-                    if (loading) Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: Colors.red))),
+                    if (loading) Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))),
                   ],
                 ),
               ),
@@ -146,7 +143,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 const SizedBox(height: 10),
                 Text(d!['synopsis'] ?? "", style: const TextStyle(color: Colors.grey, fontSize: 13), maxLines: 3),
                 const SizedBox(height: 20),
-                Container(height: 50, width: double.infinity, decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(30)), child: const Center(child: Text("Favorit", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)))),
+                Container(height: 50, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFF4F46E5), borderRadius: BorderRadius.circular(30)), child: const Center(child: Text("Favorit", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)))),
                 const SizedBox(height: 30),
                 const Text("DAFTAR EPISODE", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 const SizedBox(height: 15),
@@ -157,7 +154,7 @@ class _PlayerPageState extends State<PlayerPage> {
                   itemBuilder: (c, i) => TVButton(
                     onTap: () => _loadVideo(i + 1),
                     child: Container(
-                      decoration: BoxDecoration(color: (i + 1) == currentEp ? Colors.red.withOpacity(0.2) : Colors.white10, borderRadius: BorderRadius.circular(15), border: (i + 1) == currentEp ? Border.all(color: Colors.red) : null),
+                      decoration: BoxDecoration(color: (i + 1) == currentEp ? const Color(0xFF4F46E5).withOpacity(0.2) : Colors.white10, borderRadius: BorderRadius.circular(15), border: (i + 1) == currentEp ? Border.all(color: const Color(0xFF4F46E5)) : null),
                       alignment: Alignment.center, child: Text("${i + 1}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ),
@@ -185,7 +182,7 @@ class _PlayerPageState extends State<PlayerPage> {
           IconButton(icon: const Icon(Icons.forward_10, size: 30, color: Colors.white), onPressed: () => _v!.seekTo(_v!.value.position + const Duration(seconds: 10))),
         ]),
         const Spacer(),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: VideoProgressIndicator(_v!, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Colors.red))),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: VideoProgressIndicator(_v!, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFF4F46E5)))),
         Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
           IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white), onPressed: _prev),
           IconButton(icon: const Icon(Icons.skip_next, color: Colors.white), onPressed: _next),
@@ -196,11 +193,3 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 }
-// Ganti fungsi _toggleFullscreen dengan ini:
-  void _toggleFullscreen() {
-    // Tetap di potret, tidak usah ke landscape
-    // Hanya zoom in/out atau biarkan saja
-    setState(() {
-      videoFit = videoFit == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
-    });
-  }
