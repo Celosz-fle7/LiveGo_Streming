@@ -3,15 +3,18 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'dobda.id';
+  // Menggunakan domain murni tanpa https:// karena akan di-parse menggunakan Uri.https
+  static const String domain = 'api-drama.dobda.id';
   static const String secret = "22dfb2b849814054af0491ff2ee3ffe33989313d7d38e97aae659757a4cf8960";
 
   static Future<dynamic> request(String path, Map<String, String> params) async {
     try {
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      final uri = Uri.parse(baseUrl + path).replace(queryParameters: params);
       
-      // FORMULA SIGNATURE POSTMAN: METHOD:PATH:TIMESTAMP
+      // PERBAIKAN UTAMA: Menyusun URI menggunakan skema https resmi bawaan Flutter
+      final uri = Uri.https(domain, path, params);
+      
+      // FORMULA SIGNATURE POSTMAN ASLI: METHOD:PATH:TIMESTAMP
       final String payload = "GET:$path:$timestamp";
       
       final key = utf8.encode(secret);
