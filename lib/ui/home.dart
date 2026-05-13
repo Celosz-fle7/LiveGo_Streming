@@ -19,9 +19,8 @@ class _HomePageState extends State<HomePage> {
   List<String> platforms = [];
   bool hasDubbing = false;
   
-  List<String> allPlatforms = [
-    "Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort",
-    "Moviebox", "Anichin", "Animelovers", "RapidTV", "ReelShort"
+  final List<String> allPlatforms = [
+    "Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"
   ];
 
   @override
@@ -51,14 +50,12 @@ class _HomePageState extends State<HomePage> {
     if (selS.isEmpty) return;
     setState(() { loading = true; hasDubbing = false; });
     
-    // Load banner
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id");
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
       setState(() => banner = bRes['data'][0]);
     }
     
     if (selC == "Dubbing") {
-      // Load Dubbing
       final dubRes = await ApiService.get("/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id");
       if (dubRes != null && dubRes['data'] != null) {
         final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
@@ -68,14 +65,12 @@ class _HomePageState extends State<HomePage> {
         });
       }
       
-      // Load Popular
       final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1");
       if (popRes != null && popRes['data'] != null) {
         final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
         setState(() => popularList = popData);
       }
     } else {
-      // Load Terbaru
       final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id");
       if (newRes != null && newRes['data'] != null) {
         final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
@@ -90,41 +85,51 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     bool isT = MediaQuery.of(context).size.width > 900;
     
-    Widget buildGrid(List list) {
+    Widget buildGrid(List list, {String? title}) {
       if (list.isEmpty) {
         return const Padding(
           padding: EdgeInsets.all(20),
           child: Center(child: Text("Tidak ada konten", style: TextStyle(color: Colors.white54))),
         );
       }
-      return GridView.builder(
-        shrinkWrap: true, 
-        physics: const NeverScrollableScrollPhysics(), 
-        padding: const EdgeInsets.all(15), 
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: isT ? 7 : 4, 
-          childAspectRatio: 0.65, 
-          crossAxisSpacing: 10, 
-          mainAxisSpacing: 10
-        ),
-        itemCount: list.length > 20 ? 20 : list.length,
-        itemBuilder: (c, i) => GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: list[i]['id'], source: selS, title: list[i]['title']))),
-          child: Container(
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
-            child: Column(children: [
-              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(list[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
-              const SizedBox(height: 6),
-              Text(list[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)),
-              const SizedBox(height: 2),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(list[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)),
-                const SizedBox(width: 6),
-                Text(list[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8)),
-              ]),
-            ]),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 15, top: 10, bottom: 5),
+              child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            ),
+          GridView.builder(
+            shrinkWrap: true, 
+            physics: const NeverScrollableScrollPhysics(), 
+            padding: const EdgeInsets.all(15), 
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isT ? 7 : 4, 
+              childAspectRatio: 0.65, 
+              crossAxisSpacing: 10, 
+              mainAxisSpacing: 10
+            ),
+            itemCount: list.length > 20 ? 20 : list.length,
+            itemBuilder: (c, i) => GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: list[i]['id'], source: selS, title: list[i]['title']))),
+              child: Container(
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
+                child: Column(children: [
+                  Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(list[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
+                  const SizedBox(height: 6),
+                  Text(list[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                  const SizedBox(height: 2),
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(list[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+                    const SizedBox(width: 6),
+                    Text(list[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8)),
+                  ]),
+                ]),
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
     
@@ -141,9 +146,10 @@ class _HomePageState extends State<HomePage> {
       body: platforms.isEmpty
           ? const Center(child: Text("Tidak ada platform aktif.\nKelola Sumber Data untuk mengaktifkan.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)))
           : loading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4)))
               : SingleChildScrollView(
                   child: Column(children: [
+                    // Banner
                     if (banner != null)
                       Container(
                         margin: const EdgeInsets.all(15), height: 180,
@@ -161,7 +167,7 @@ class _HomePageState extends State<HomePage> {
                                 const SizedBox(height: 5),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(color: const Color(0xFF4F46E5), borderRadius: BorderRadius.circular(15)),
+                                  decoration: BoxDecoration(color: const Color(0xFF06B6D4), borderRadius: BorderRadius.circular(15)),
                                   child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)),
                                 ),
                               ]),
@@ -169,46 +175,91 @@ class _HomePageState extends State<HomePage> {
                           ]),
                         ),
                       ),
-                    _list(platforms, selS, (v){ setState(()=> selS = v.toLowerCase()); fetch(); }, const Color(0xFF4F46E5)),
-                    const SizedBox(height: 10),
-                    _list(["Dubbing", "Terbaru"], selC, (v){ setState(()=> selC = v); fetch(); }, const Color(0xFF4F46E5)),
                     
+                    // Platform Cards (6 platform, 1 baris)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 15),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: platforms.map((platform) {
+                          final isSelected = selS == platform.toLowerCase();
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                selS = platform.toLowerCase();
+                                fetch();
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? const Color(0xFF06B6D4) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: isSelected ? const Color(0xFF06B6D4) : Colors.white12, width: 0.5),
+                              ),
+                              child: Text(
+                                platform,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // Category Tabs (Dubbing & Terbaru) dengan garis bawah sesuai teks
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        const SizedBox(width: 15),
+                        _categoryTab("Dubbing", selC == "Dubbing", () => setState(() { selC = "Dubbing"; fetch(); })),
+                        const SizedBox(width: 30),
+                        _categoryTab("Terbaru", selC == "Terbaru", () => setState(() { selC = "Terbaru"; fetch(); })),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 10),
+                    
+                    // Content
                     if (selC == "Dubbing")
                       Column(children: [
-                        if (hasDubbing) ...[
-                          const Padding(padding: EdgeInsets.symmetric(horizontal: 15), child: Row(children: [Text("Dubbing (Sulih Suara)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))])),
-                          buildGrid(dubbingList),
-                        ],
-                        const Padding(padding: EdgeInsets.symmetric(horizontal: 15), child: Row(children: [Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))])),
-                        if (hasDubbing) const SizedBox(height: 10),
-                        buildGrid(popularList),
+                        if (hasDubbing) buildGrid(dubbingList, title: "Dubbing (Sulih Suara)"),
+                        buildGrid(popularList, title: hasDubbing ? "Populer" : null),
                       ])
                     else
-                      Column(children: [
-                        const Padding(padding: EdgeInsets.symmetric(horizontal: 15), child: Row(children: [Text("Terbaru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))])),
-                        buildGrid(terbaruList),
-                      ]),
+                      buildGrid(terbaruList, title: "Terbaru"),
                   ]),
                 ),
     );
   }
 
-  Widget _list(List l, String s, Function(String) o, Color c) => SizedBox(
-    height: 40,
-    child: ListView.builder(
-      scrollDirection: Axis.horizontal, 
-      padding: const EdgeInsets.only(left: 15), 
-      itemCount: l.length,
-      itemBuilder: (ctx, i) => Padding(
-        padding: const EdgeInsets.only(right: 10),
-        child: GestureDetector(
-          onTap: () => o(l[i]),
-          child: Column(children: [
-            Text(l[i], style: TextStyle(color: s == l[i].toLowerCase() || s == l[i] ? Colors.white : Colors.white54, fontSize: 14, fontWeight: s == l[i].toLowerCase() || s == l[i] ? FontWeight.bold : FontWeight.normal)),
-            Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 20, color: s == l[i].toLowerCase() || s == l[i] ? c : Colors.transparent),
-          ]),
-        ),
+  Widget _categoryTab(String title, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.white54,
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            height: 2,
+            width: title == "Dubbing" ? 50.0 : 45.0, // panjang sesuai teks
+            color: isSelected ? const Color(0xFF06B6D4) : Colors.transparent,
+          ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }
