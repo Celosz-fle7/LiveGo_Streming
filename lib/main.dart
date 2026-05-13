@@ -3,10 +3,11 @@ import 'ui/home.dart';
 import 'ui/account.dart';
 import 'ui/downloads.dart';
 import 'ui/api_service.dart';
+import 'ui/detail/detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ApiService.init(); // Auto clean cache saat startup
+  await ApiService.init();
   runApp(const MyApp());
 }
 
@@ -16,6 +17,7 @@ class MyApp extends StatelessWidget {
   @override Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'LiveGO',
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0D1117),
         primaryColor: const Color(0xFF4F46E5),
@@ -35,6 +37,13 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const MainPage(),
+      routes: {
+        '/detail': (context) => DetailScreen(
+          id: ModalRoute.of(context)!.settings.arguments as Map??['id'] ?? '',
+          source: ModalRoute.of(context)!.settings.arguments as Map??['source'] ?? '',
+          title: ModalRoute.of(context)!.settings.arguments as Map??['title'] ?? '',
+        ),
+      },
     );
   }
 }

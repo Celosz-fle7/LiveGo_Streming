@@ -141,7 +141,7 @@ class _HomePageState extends State<HomePage> {
             ),
             itemCount: list.length > 20 ? 20 : list.length,
             itemBuilder: (c, i) => GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => PlayerPage(id: list[i]['id'], source: selS, title: list[i]['title']))),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => DetailScreen(id: list[i]['id'], source: selS, title: list[i]['title']))),
               child: Container(
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
                 child: Column(children: [
@@ -201,7 +201,7 @@ class _HomePageState extends State<HomePage> {
                         margin: const EdgeInsets.all(15), height: 180,
                         decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)]),
                         child: GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PlayerPage(id: banner!['id'], source: selS, title: banner!['title']))),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => DetailScreen(id: banner!['id'], source: selS, title: banner!['title']))),
                           child: Stack(children: [
                             ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(banner!['cover'], fit: BoxFit.cover, width: double.infinity)),
                             Container(
