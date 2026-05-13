@@ -6,12 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PlatformChecker {
   static const String secret = "22dfb2b849814054af0491ff2ee3ffe33989313d7d38e97aae659757a4cf8960";
   
-  // 6 platform utama (default aktif)
   static const List<String> primaryPlatforms = [
     "melolo", "freereels", "shortmax", "dramawave", "netshort", "goodshort"
   ];
   
-  // 18 platform cadangan (default nonaktif)
   static const List<String> backupPlatforms = [
     "moviebox", "anichin", "animelovers", "rapidtv", "reelshort", "meloshort",
     "flextv", "dramarush", "stardusttv", "dramanova", "fundrama", "starshort",
@@ -57,59 +55,50 @@ class PlatformChecker {
     }
   }
 
-  // Cek semua platform (primary + backup) dan update SharedPreferences
   static Future<void> checkAllAndFailover() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // 1. Cek status semua platform (24)
     Map<String, bool> statusMap = {};
     for (var p in primaryPlatforms) {
       final result = await checkStatus(p);
-      statusMap[p] = result['status'] == 'active' || result['status'] == 'slow';
+      statusMap[p] = (result['status'] == 'active' || result['status'] == 'slow');
       print("$p: ${result['status']}");
     }
     for (var p in backupPlatforms) {
       final result = await checkStatus(p);
-      statusMap[p] = result['status'] == 'active' || result['status'] == 'slow';
+      statusMap[p] = (result['status'] == 'active' || result['status'] == 'slow');
       print("$p: ${result['status']}");
     }
     
-    // 2. Dapatkan platform yang sedang aktif dari preferences (user pilihan)
     List<String> currentActive = [];
     for (var p in primaryPlatforms) {
       final isActive = prefs.getBool('source_$p') ?? true;
       if (isActive) currentActive.add(p);
     }
     
-    // 3. Jika ada platform utama yang mati, ganti dengan cadangan
     bool changed = false;
     for (int i = 0; i < primaryPlatforms.length; i++) {
       final primary = primaryPlatforms[i];
       final isActive = prefs.getBool('source_$primary') ?? true;
+      final isStatusGood = statusMap[primary] == true;
       
-      // Jika platform utama aktif tapi statusnya down
-      if (isActive && !statusMap[primary]) {
-        // Cari cadangan yang hidup
+      if (isActive && !isStatusGood) {
         String? replacement;
         for (var backup in backupPlatforms) {
-          if (statusMap[backup] == true) {
-            final isBackupActive = prefs.getBool('source_$backup') ?? false;
-            if (!isBackupActive) {
-              replacement = backup;
-              break;
-            }
+          final isBackupGood = statusMap[backup] == true;
+          final isBackupActive = prefs.getBool('source_$backup') ?? false;
+          if (isBackupGood && !isBackupActive) {
+            replacement = backup;
+            break;
           }
         }
         
         if (replacement != null) {
-          // Nonaktifkan platform utama yang mati
           await prefs.setBool('source_$primary', false);
-          // Aktifkan platform cadangan
           await prefs.setBool('source_$replacement', true);
           changed = true;
           print("FAILOVER: $primary (mati) diganti dengan $replacement");
         } else {
-          // Tidak ada cadangan yang hidup, tetap nonaktifkan yang mati
           await prefs.setBool('source_$primary', false);
           changed = true;
           print("FAILOVER: $primary (mati) dinonaktifkan, tidak ada cadangan");
