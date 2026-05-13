@@ -59,8 +59,8 @@ class _HomePageState extends State<HomePage> {
       _totalTasks = 0;
     });
     
-    int totalTasks = 1; // banner
-    totalTasks += 2; // dubbing + popular
+    int totalTasks = 1;
+    totalTasks += 2;
     setState(() => _totalTasks = totalTasks);
     
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id", forceRefresh: forceRefresh);
@@ -172,7 +172,9 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
-        title: Row(children: [Image.asset("assets/images/logo.png", height: 30), const SizedBox(width: 8), const Text("LiveGO")], style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text("LiveGO", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: const Color(0xFF0D1117),
+        elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.search, color: Colors.white), onPressed: () {}),
           IconButton(icon: const Icon(Icons.favorite_border, color: Colors.white), onPressed: () {}),
