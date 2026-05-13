@@ -17,7 +17,7 @@ class LivegoApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF0D1117),
         primaryColor: const Color(0xFF8B5CF6),
       ),
-      home: const MainNavigation(),
+      home: MainNavigation(),
     );
   }
 }
