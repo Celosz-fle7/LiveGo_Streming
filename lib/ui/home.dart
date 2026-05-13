@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'detail/detail_screen.dart';
 import 'player.dart';
 import 'api_service.dart';
 
@@ -58,12 +59,10 @@ class _HomePageState extends State<HomePage> {
       _totalTasks = 0;
     });
     
-    // Hitung total tugas yang akan dijalankan
     int totalTasks = 1; // banner
     totalTasks += 2; // dubbing + popular
     setState(() => _totalTasks = totalTasks);
     
-    // Load banner
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id", forceRefresh: forceRefresh);
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
       setState(() => banner = bRes['data'][0]);
@@ -71,7 +70,6 @@ class _HomePageState extends State<HomePage> {
     setState(() => _loadingProgress++);
     
     if (selC == "Dubbing") {
-      // Load Dubbing
       final dubRes = await ApiService.get("/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id", forceRefresh: forceRefresh);
       if (dubRes != null && dubRes['data'] != null) {
         final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
@@ -84,7 +82,6 @@ class _HomePageState extends State<HomePage> {
         setState(() => _loadingProgress++);
       }
       
-      // Load Popular
       final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1", forceRefresh: forceRefresh);
       if (popRes != null && popRes['data'] != null) {
         final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
@@ -92,7 +89,6 @@ class _HomePageState extends State<HomePage> {
       }
       setState(() => _loadingProgress++);
     } else {
-      // Load Terbaru
       final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id", forceRefresh: forceRefresh);
       if (newRes != null && newRes['data'] != null) {
         final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
@@ -141,7 +137,18 @@ class _HomePageState extends State<HomePage> {
             ),
             itemCount: list.length > 20 ? 20 : list.length,
             itemBuilder: (c, i) => GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => DetailScreen(id: list[i]['id'], source: selS, title: list[i]['title']))),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (ctx) => DetailScreen(
+                      id: list[i]['id'].toString(),
+                      source: selS,
+                      title: list[i]['title'] ?? 'No Title',
+                    ),
+                  ),
+                );
+              },
               child: Container(
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
                 child: Column(children: [
@@ -195,13 +202,23 @@ class _HomePageState extends State<HomePage> {
               : SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: Column(children: [
-                    // Banner
                     if (banner != null)
                       Container(
                         margin: const EdgeInsets.all(15), height: 180,
                         decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)]),
                         child: GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => DetailScreen(id: banner!['id'], source: selS, title: banner!['title']))),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (c) => DetailScreen(
+                                  id: banner!['id'].toString(),
+                                  source: selS,
+                                  title: banner!['title'] ?? 'No Title',
+                                ),
+                              ),
+                            );
+                          },
                           child: Stack(children: [
                             ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(banner!['cover'], fit: BoxFit.cover, width: double.infinity)),
                             Container(

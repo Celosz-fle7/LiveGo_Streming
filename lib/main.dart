@@ -3,7 +3,6 @@ import 'ui/home.dart';
 import 'ui/account.dart';
 import 'ui/downloads.dart';
 import 'ui/api_service.dart';
-import 'ui/detail/detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,13 +36,6 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const MainPage(),
-      routes: {
-        '/detail': (context) => DetailScreen(
-          id: ModalRoute.of(context)!.settings.arguments as Map??['id'] ?? '',
-          source: ModalRoute.of(context)!.settings.arguments as Map??['source'] ?? '',
-          title: ModalRoute.of(context)!.settings.arguments as Map??['title'] ?? '',
-        ),
-      },
     );
   }
 }
