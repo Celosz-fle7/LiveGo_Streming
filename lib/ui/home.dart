@@ -2,7 +2,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'detail/detail_screen.dart';
 import 'player.dart';
 import 'api_service.dart';
 import '../database/database_helper.dart';
@@ -30,7 +29,7 @@ class _HomePageState extends State<HomePage> {
   final Random _random = Random();
   
   final List<String> allPlatforms = [
-    "Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"
+    "FreeReels", "ShortMax", "DramaWave", "Melolo", "NetShort", "GoodShort"
   ];
 
   @override
@@ -42,31 +41,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadWatchedIds() async {
     watchedIds = await DatabaseHelper().getWatchedContentIds();
-  }
-
-  // Filter konten yang sudah ditonton (pindah ke bawah) + acak
-  List _filterAndShuffle(List items, {bool moveWatchedToBottom = true}) {
-    if (items.isEmpty) return [];
-    
-    // Pisahkan yang sudah ditonton dan belum
-    final unwatched = <dynamic>[];
-    final watched = <dynamic>[];
-    
-    for (var item in items) {
-      final id = item['id']?.toString() ?? '';
-      if (moveWatchedToBottom && watchedIds.contains(id)) {
-        watched.add(item);
-      } else {
-        unwatched.add(item);
-      }
-    }
-    
-    // Acak masing-masing grup
-    unwatched.shuffle(_random);
-    watched.shuffle(_random);
-    
-    // Gabungkan: yang belum ditonton di atas, yang sudah ditonton di bawah
-    return [...unwatched, ...watched];
   }
 
   Future<void> _loadActivePlatforms() async {
@@ -95,7 +69,6 @@ class _HomePageState extends State<HomePage> {
       _totalTasks = 0;
     });
     
-    // Refresh watched IDs
     await _loadWatchedIds();
     
     int totalTasks = 1;
@@ -113,8 +86,8 @@ class _HomePageState extends State<HomePage> {
       if (dubRes != null && dubRes['data'] != null) {
         final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
         setState(() {
-          dubbingList = _filterAndShuffle(dubData);
-          hasDubbing = dubbingList.isNotEmpty;
+          dubbingList = dubData;
+          hasDubbing = dubData.isNotEmpty;
           _loadingProgress++;
         });
       } else {
@@ -124,14 +97,14 @@ class _HomePageState extends State<HomePage> {
       final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1", forceRefresh: forceRefresh);
       if (popRes != null && popRes['data'] != null) {
         final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
-        setState(() => popularList = _filterAndShuffle(popData));
+        setState(() => popularList = popData);
       }
       setState(() => _loadingProgress++);
     } else {
       final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id", forceRefresh: forceRefresh);
       if (newRes != null && newRes['data'] != null) {
         final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
-        setState(() => terbaruList = _filterAndShuffle(newData));
+        setState(() => terbaruList = newData);
       }
       setState(() => _loadingProgress++);
     }
@@ -143,6 +116,27 @@ class _HomePageState extends State<HomePage> {
     setState(() => refreshing = true);
     await fetch(forceRefresh: true);
     setState(() => refreshing = false);
+  }
+
+  List _filterAndShuffle(List items, {bool moveWatchedToBottom = true}) {
+    if (items.isEmpty) return [];
+    
+    final unwatched = <dynamic>[];
+    final watched = <dynamic>[];
+    
+    for (var item in items) {
+      final id = item['id']?.toString() ?? '';
+      if (moveWatchedToBottom && watchedIds.contains(id)) {
+        watched.add(item);
+      } else {
+        unwatched.add(item);
+      }
+    }
+    
+    unwatched.shuffle(_random);
+    watched.shuffle(_random);
+    
+    return [...unwatched, ...watched];
   }
 
   Widget _buildGrid(List list) {
@@ -168,13 +162,15 @@ class _HomePageState extends State<HomePage> {
         final isWatched = watchedIds.contains(item['id']?.toString());
         return GestureDetector(
           onTap: () {
+            // LANGSUNG KE PLAYER (EPISODE 1)
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (ctx) => DetailScreen(
+                builder: (ctx) => PlayerPage(
                   id: item['id'].toString(),
                   source: selS,
                   title: item['title'] ?? 'No Title',
+                  ep: '1', // langsung episode 1
                 ),
               ),
             );
@@ -265,10 +261,11 @@ class _HomePageState extends State<HomePage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (ctx) => DetailScreen(
+                builder: (ctx) => PlayerPage(
                   id: item['id'].toString(),
                   source: selS,
                   title: item['title'] ?? 'No Title',
+                  ep: '1',
                 ),
               ),
             );
@@ -335,8 +332,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isT = MediaQuery.of(context).size.width > 900;
-    
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
@@ -368,26 +363,27 @@ class _HomePageState extends State<HomePage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: Column(children: [
                     if (banner != null)
-                      Container(
-                        margin: const EdgeInsets.all(15), 
-                        height: 200,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)],
-                        ),
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (c) => DetailScreen(
-                                  id: banner!['id'].toString(),
-                                  source: selS,
-                                  title: banner!['title'] ?? 'No Title',
-                                ),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (c) => PlayerPage(
+                                id: banner!['id'].toString(),
+                                source: selS,
+                                title: banner!['title'] ?? 'No Title',
+                                ep: '1',
                               ),
-                            );
-                          },
+                            ),
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.all(15), 
+                          height: 200,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)],
+                          ),
                           child: Stack(children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(20),
