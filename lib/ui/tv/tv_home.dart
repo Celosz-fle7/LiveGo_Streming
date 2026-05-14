@@ -17,8 +17,6 @@ class _TVHomePageState extends State<TVHomePage> {
   bool loading = true, hasDubbing = false;
   String selS = "freereels", selC = "Dubbing";
   int _selectedMenuIdx = 0;
-  
-  // Status Animasi Ekspansi Menu Samping TV
   bool _isSidebarExpanded = false;
   
   final List<Map<String, dynamic>> _menuItems = [
@@ -39,7 +37,11 @@ class _TVHomePageState extends State<TVHomePage> {
     for (var p in ["Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"]) {
       if (prefs.getBool('source_${p.toLowerCase()}') ?? true) active.add(p);
     }
-    setState(() { platforms = active; if (active.isNotEmpty) selS = active.toLowerCase(); });
+    setState(() { 
+      platforms = active; 
+      // FIXED: Menggunakan active.first untuk mengambil teks kata pertama dari list data
+      if (active.isNotEmpty) selS = active.first.toLowerCase(); 
+    });
     if (active.isNotEmpty) fetch();
   }
 
@@ -99,18 +101,16 @@ class _TVHomePageState extends State<TVHomePage> {
       child: Scaffold(
         backgroundColor: const Color(0xFF070B11),
         body: Row(children: [
-          // 1. SIDEBAR DENGAN ANIMASI STRIP KAPSUL MELUNCUR (Ekspansi 70px ke 240px)
           FocusTraversalGroup(
             policy: OrderedTraversalPolicy(),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250), // Kecepatan meluncur laci menu
+              duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
               width: _isSidebarExpanded ? 240 : 76,
               height: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
               decoration: const BoxDecoration(color: Color(0xFF0F1522), border: Border(right: BorderSide(color: Colors.white12, width: 0.5))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Header Logo Box Adaptif
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
@@ -132,7 +132,6 @@ class _TVHomePageState extends State<TVHomePage> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Focus(
-                          // PICUAN UTAMA: Jika remote D-pad TV menyorot area baris menu ini, bentangkan laci Sidebar
                           onFocusChange: (hasFocus) {
                             if (hasFocus) {
                               setState(() => _isSidebarExpanded = true);
@@ -141,7 +140,6 @@ class _TVHomePageState extends State<TVHomePage> {
                           child: TVButton(
                             onTap: () {
                               setState(() => _selectedMenuIdx = index);
-                              // Jika user mengklik menu selain Beranda, tutup laci secara otomatis
                               if (index != 0) setState(() => _isSidebarExpanded = false);
                             },
                             child: Container(
@@ -164,11 +162,8 @@ class _TVHomePageState extends State<TVHomePage> {
               ]),
             ),
           ),
-          
-          // 2. AREA KONTEN SEBELAH KANAN (Otomatis mendeteksi jika remote berpindah ke arah kanan)
           Expanded(
             child: Focus(
-              // JIKA REMOTE KELUAR KE KANAN (Menuju Film): Kecilkan kembali bilah menu Sidebar secara senyap
               onFocusChange: (hasFocus) {
                 if (hasFocus && _isSidebarExpanded) {
                   setState(() => _isSidebarExpanded = false);
