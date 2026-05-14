@@ -46,7 +46,43 @@ class DeviceWrapper extends StatelessWidget {
     if (isTV) {
       return const TVHomePage();
     } else {
-      return const HomePage();
+      return const MainPage();
     }
+  }
+}
+
+class MainPage extends StatefulWidget {
+  const MainPage({super.key});
+  @override State<MainPage> createState() => _MainPageState();
+}
+
+class _MainPageState extends State<MainPage> {
+  int _idx = 0;
+  final List<Widget> _pages = [
+    const HomePage(),
+    const HistoryScreen(),
+    const SearchScreen(),
+    const DownloadPage(),
+    const AccountPage(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(index: _idx, children: _pages),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _idx,
+        onTap: (i) => setState(() => _idx = i),
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'HISTORY'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.download), label: 'DOWNLOAD'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'AKUN'),
+        ],
+      ),
+    );
   }
 }
