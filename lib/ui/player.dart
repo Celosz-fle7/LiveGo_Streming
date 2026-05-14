@@ -29,12 +29,10 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
-    // PAKSA LAYAR HP BERPUTAR LANDSCAPE SECARA TOTAL (Gaya Cineflow)
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeRight,
       DeviceOrientation.landscapeLeft,
     ]);
-    // SEMBUNYIKAN STATUS BAR ATAS & NAVIGASI BAWAH HP
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _loadData();
     _checkFavorite();
@@ -42,7 +40,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
-    // KEMBALIKAN LAYAR HP KE MODE TEGAK (PORTRAIT) SAAT KELUAR DARI PLAYER
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
@@ -156,16 +153,13 @@ class _PlayerPageState extends State<PlayerPage> {
       body: GestureDetector(
         onTap: _toggleControls,
         child: Stack(children: [
-          // 1. VIDEO DI TENGAH LAYAR LANDSCAPE (Gaya Cineflow)
           Center(
             child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
                 ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
                 : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
           ),
           
-          // 2. KONTROL OVERLAY TRANSPARAN
           if (showControls && !isLoading && _controller != null) ...[
-            // Top Bar Kontrol
             Positioned(
               top: 0, left: 0, right: 0,
               child: Container(
@@ -181,7 +175,6 @@ class _PlayerPageState extends State<PlayerPage> {
               ),
             ),
 
-            // Bottom Bar Kontrol Kapsul Horizontal (Persis Seperti Aturan Cineflow)
             Positioned(
               bottom: 0, left: 0, right: 0,
               child: Container(
@@ -194,7 +187,6 @@ class _PlayerPageState extends State<PlayerPage> {
                     Text(_formatDuration(_duration), style: const TextStyle(color: Colors.white, fontSize: 12)),
                   ]),
                   const SizedBox(height: 10),
-                  // Kapsul menu horizontal
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white, size: 26), onPressed: _prevEpisode),
                     const SizedBox(width: 20),
@@ -206,7 +198,6 @@ class _PlayerPageState extends State<PlayerPage> {
                     const SizedBox(width: 20),
                     IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 26), onPressed: _nextEpisode),
                     const SizedBox(width: 30),
-                    // Tombol pemanggil List Episode Samping Kanan versi HP
                     IconButton(icon: const Icon(Icons.format_list_numbered, color: Colors.white, size: 26), onPressed: () => setState(() => _showEpisodeSidebar = true)),
                   ]),
                 ]),
@@ -214,7 +205,6 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           ],
 
-          // 3. EXPANDABLE EPISODE DRAWER KANAN VERSI HP LANDSCAPE
           if (_showEpisodeSidebar) Positioned(
             right: 0, top: 0, bottom: 0,
             child: Container(
@@ -237,7 +227,8 @@ class _PlayerPageState extends State<PlayerPage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                           margin: const EdgeInsets.only(bottom: 6),
-                          decoration: BoxDecoration(color: isCurrent ? const Color(0xFF06B6D4).withOpacity(0.15) : Colors.white05, borderRadius: BorderRadius.circular(8)),
+                          // FIXED: Mengganti Colors.white05 yang typo menjadi Colors.white12 bawaan Flutter
+                          decoration: BoxDecoration(color: isCurrent ? const Color(0xFF06B6D4).withOpacity(0.15) : Colors.white12, borderRadius: BorderRadius.circular(8)),
                           child: Text("Episode $epNum", style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white70, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
                         ),
                       );
