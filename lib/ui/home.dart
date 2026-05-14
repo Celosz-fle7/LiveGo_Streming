@@ -16,6 +16,7 @@ class _HomePageState extends State<HomePage> {
   List terbaruList = [];
   Map? banner;
   bool loading = true;
+  bool refreshing = false;
   String selS = "";
   String selC = "Dubbing";
   List<String> platforms = [];
@@ -24,7 +25,7 @@ class _HomePageState extends State<HomePage> {
   int _totalTasks = 0;
   
   final List<String> allPlatforms = [
-    "Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"
+    "Melolo", "FreeReels", " ShortMax", "DramaWave", "NetShort", "GoodShort"
   ];
 
   @override
@@ -37,9 +38,9 @@ class _HomePageState extends State<HomePage> {
     final prefs = await SharedPreferences.getInstance();
     final activeList = <String>[];
     for (var p in allPlatforms) {
-      final id = p.toLowerCase();
+      final id = p.trim().toLowerCase();
       final isActive = prefs.getBool('source_$id') ?? true;
-      if (isActive) activeList.add(p);
+      if (isActive) activeList.add(p.trim());
     }
     setState(() {
       platforms = activeList;
@@ -106,7 +107,6 @@ class _HomePageState extends State<HomePage> {
     setState(() => refreshing = false);
   }
 
-  // Grid untuk Dubbing (tetap 4 kolom meski gambar kosong)
   Widget _buildGrid(List list) {
     if (list.isEmpty) {
       return const Padding(
@@ -150,14 +150,8 @@ class _HomePageState extends State<HomePage> {
                     imageUrl: item['cover'] ?? '',
                     fit: BoxFit.cover,
                     width: double.infinity,
-                    placeholder: (_, __) => Container(
-                      color: Colors.grey[800],
-                      child: const Center(child: Icon(Icons.movie, color: Colors.grey)),
-                    ),
-                    errorWidget: (_, __, ___) => Container(
-                      color: Colors.grey[800],
-                      child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-                    ),
+                    placeholder: (_, __) => Container(color: Colors.grey[800]),
+                    errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
                   ),
                 ),
               ),
@@ -189,7 +183,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Grid untuk Populer dan Terbaru
   Widget _buildGridPoster(List list) {
     if (list.isEmpty) {
       return const Padding(
@@ -300,7 +293,6 @@ class _HomePageState extends State<HomePage> {
               : SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: Column(children: [
-                    // Banner
                     if (banner != null)
                       Container(
                         margin: const EdgeInsets.all(15), 
