@@ -47,7 +47,7 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void dispose() {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _controller?.dispose();
     _hideTimer?.cancel();
     super.dispose();
@@ -97,9 +97,12 @@ class _PlayerPageState extends State<PlayerPage> {
       
       String videoUrl = '';
       if (qualities.isNotEmpty) {
-        for (var q in qualities) { if (q['quality'] == currentQuality) { videoUrl = q['url']; break; } }
-        // FIX MENYELURUH: Menggunakan indeks array ke-0 qualities[0]['url'] dengan aman agar tidak memicu error assigning type
-        if (videoUrl.isEmpty) videoUrl = qualities[0]['url'] ?? '';
+        for (var q in qualities) { if (q['quality'] == currentQuality) { videoUrl = q['url'] ?? ''; break; } }
+        // PERBAIKAN TOTAL: Menggunakan pengecekan list yang aman dan anti-error tipe data String/int
+        if (videoUrl.isEmpty && qualities.isNotEmpty) {
+          final firstStream = qualities[0];
+          if (firstStream != null) videoUrl = firstStream['url'] ?? '';
+        }
       }
       
       if (videoUrl.isNotEmpty) {
