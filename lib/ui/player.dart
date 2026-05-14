@@ -58,10 +58,14 @@ class _PlayerPageState extends State<PlayerPage> {
     await DatabaseHelper().addToHistory({'drama_id': widget.id, 'drama_title': widget.title, 'drama_poster': dramaData?['cover'], 'episode_id': epNum.toString(), 'episode_number': epNum, 'position_seconds': startPos?.inSeconds ?? 0, 'duration_seconds': 0, 'last_watched': DateTime.now().millisecondsSinceEpoch, 'platform': widget.source});
     final res = await ApiService.get("/api/v2/video?category_p=${widget.source}&id=${widget.id}&chapterId=$epNum&lang=id");
     if (res != null && res['success'] == true && res['data'] != null) {
-      qualities = res['data']['streams'] ?? []; audioTracks = res['data']['audios'] ?? []; subtitles = res['data']['subtitles'] ?? [];
+      final videoData = res['data'];
+      qualities = videoData['streams'] ?? []; 
+      audioTracks = videoData['audios'] ?? []; 
+      subtitles = videoData['subtitles'] ?? [];
+      
       String url = '';
       if (qualities.isNotEmpty) {
-        for (var q in qualities) { if (q['quality'] == currentQuality) { url = q['url'] ?? ''; break; } }
+        for (var q in qualities) { if (q['quality'].toString().toLowerCase() == currentQuality.toLowerCase()) { url = q['url'] ?? ''; break; } }
         if (url.isEmpty) url = qualities[0]['url'] ?? '';
       }
       if (url.isNotEmpty) {
@@ -73,7 +77,7 @@ class _PlayerPageState extends State<PlayerPage> {
         });
         _controller!.addListener(() {
           if (mounted) setState(() { _position = _controller!.value.position.inSeconds.toDouble(); _duration = _controller!.value.duration.inSeconds.toDouble(); });
-          if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) _nextEpisode();
+          if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) _loadVideo(currentEpisode + 1);
         });
       } else { setState(() => isLoading = false); }
     } else { setState(() => isLoading = false); }
@@ -97,26 +101,45 @@ class _PlayerPageState extends State<PlayerPage> {
     } catch (_) {}
   }
 
-  // Core internal parser untuk memotong baris teks WebVTT (.vtt) menjadi millidetek tontonan
+  // Core internal parser adaptif (Mendukung format jam 00:00:00 maupun format langsung menit 00:00)
   void _parseWebVTT(String data) {
     final lines = data.split('\n');
     List<Map<String, dynamic>> temp = [];
-    RegExp timeRegex = RegExp(r'(\d+):(\d+):(\d+)\.(\d+)\s+-->\s+(\d+):(\d+):(\d+)\.(\d+)');
     
     for (int i = 0; i < lines.length; i++) {
-      if (timeRegex.hasMatch(lines[i])) {
-        final match = timeRegex.firstMatch(lines[i])!;
-        final start = Duration(hours: int.parse(match[1]!), minutes: int.parse(match[2]!), seconds: int.parse(match[3]!), milliseconds: int.parse(match[4]!));
-        final end = Duration(hours: int.parse(match[5]!), minutes: int.parse(match[6]!), seconds: int.parse(match[7]!), milliseconds: int.parse(match[8]!));
-        String text = "";
-        while (i + 1 < lines.length && lines[i + 1].trim().isNotEmpty && !timeRegex.hasMatch(lines[i + 1])) {
-          text += (text.isEmpty ? "" : "\n") + lines[i + 1].trim();
-          i++;
+      final line = lines[i].trim();
+      if (line.contains('-->')) {
+        final parts = line.split('-->');
+        if (parts.length == 2) {
+          final startMs = _parseTimeToMs(parts[0].trim());
+          final endMs = _parseTimeToMs(parts[1].trim());
+          String text = "";
+          while (i + 1 < lines.length && lines[i + 1].trim().isNotEmpty && !lines[i + 1].contains('-->')) {
+            text += (text.isEmpty ? "" : "\n") + lines[i + 1].trim();
+            i++;
+          }
+          if (text.isNotEmpty) {
+            temp.add({'start': startMs, 'end': endMs, 'text': text});
+          }
         }
-        temp.add({'start': start.inMilliseconds, 'end': end.inMilliseconds, 'text': text});
       }
     }
     setState(() => parsedSubtitles = temp);
+  }
+
+  int _parseTimeToMs(String timeStr) {
+    try {
+      final parts = timeStr.split(':');
+      double seconds = 0;
+      if (parts.length == 3) {
+        // Format jam -> 01:23:45.678
+        seconds = (int.parse(parts[0]) * 3600) + (int.parse(parts[1]) * 60) + double.parse(parts[2]);
+      } else if (parts.length == 2) {
+        // Format menit langsung -> 23:45.678
+        seconds = (int.parse(parts[0]) * 60) + double.parse(parts[1]);
+      }
+      return (seconds * 1000).toInt();
+    } catch (_) { return 0; }
   }
 
   void _startHideTimer() { _hideTimer?.cancel(); _hideTimer = Timer(const Duration(seconds: 5), () { if (mounted && showControls) setState(() => showControls = false); }); }
@@ -148,7 +171,6 @@ class _PlayerPageState extends State<PlayerPage> {
       backgroundColor: Colors.white, title: const Text("Pengaturan", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         _itemRow("Kualitas Video", currentQuality, () => _showQualitySelection(true)),
-        _itemRow("Auto Next", "Aktif", () {}),
         _itemRow("Audio Track", currentAudio, () {}),
         _itemRow("Subtitle", isSubtitleOn ? currentSubtitle : "Mati", _showSubtitleSelection),
       ]),
@@ -162,7 +184,8 @@ class _PlayerPageState extends State<PlayerPage> {
   void _showQualitySelection(bool closeP) {
     if (closeP) Navigator.pop(context); if (qualities.isEmpty) return;
     showDialog(context: context, builder: (c) => AlertDialog(backgroundColor: Colors.white, title: const Text("Pilih Kualitas", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), content: Column(mainAxisSize: MainAxisSize.min, children: qualities.map((q) {
-      return ListTile(title: Text(q['quality'] ?? '', style: const TextStyle(color: Colors.black87)), onTap: () { setState(() => currentQuality = q['quality']); Navigator.pop(c); _loadVideo(currentEpisode, startPos: _controller?.value.position); });
+      final qText = q['quality']?.toString() ?? '';
+      return ListTile(title: Text(qText, style: const TextStyle(color: Colors.black87)), onTap: () { setState(() => currentQuality = qText); Navigator.pop(c); _loadVideo(currentEpisode, startPos: _controller?.value.position); });
     }).toList())));
   }
 
@@ -171,7 +194,8 @@ class _PlayerPageState extends State<PlayerPage> {
     showDialog(context: context, builder: (c) => AlertDialog(backgroundColor: Colors.white, title: const Text("Subtitle", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), content: Column(mainAxisSize: MainAxisSize.min, children: [
       ListTile(title: const Text("Mati (OFF)", style: TextStyle(color: Colors.black87)), onTap: () { setState(() => isSubtitleOn = false); Navigator.pop(c); }),
       ...subtitles.map((s) {
-        return ListTile(title: Text(s['language'] ?? '', style: const TextStyle(color: Colors.black87)), onTap: () { setState(() { currentSubtitle = s['language']; isSubtitleOn = true; }); Navigator.pop(c); _fetchSubtitleFile(s['url']); });
+        final subLang = s['language']?.toString() ?? 'Unknown';
+        return ListTile(title: Text(subLang, style: const TextStyle(color: Colors.black87)), onTap: () { setState(() { currentSubtitle = subLang; isSubtitleOn = true; }); Navigator.pop(c); _fetchSubtitleFile(s['url']); });
       }),
     ])));
   }
@@ -183,7 +207,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Merender text subtitle murni menggunakan data internal Map Array secara realtime
     Widget subOverlay = (_controller != null && isSubtitleOn && parsedSubtitles.isNotEmpty)
         ? Positioned(
             bottom: showControls ? 90 : 25, left: 20, right: 20,
