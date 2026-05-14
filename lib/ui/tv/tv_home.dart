@@ -18,6 +18,9 @@ class _TVHomePageState extends State<TVHomePage> {
   String selS = "freereels", selC = "Dubbing";
   int _selectedMenuIdx = 0;
   
+  // Status Animasi Ekspansi Menu Samping TV
+  bool _isSidebarExpanded = false;
+  
   final List<Map<String, dynamic>> _menuItems = [
     {'icon': Icons.home, 'label': 'Beranda'},
     {'icon': Icons.download, 'label': 'Unduhan'},
@@ -36,10 +39,7 @@ class _TVHomePageState extends State<TVHomePage> {
     for (var p in ["Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"]) {
       if (prefs.getBool('source_${p.toLowerCase()}') ?? true) active.add(p);
     }
-    setState(() { 
-      platforms = active; 
-      if (active.isNotEmpty) selS = active[0].toLowerCase(); 
-    });
+    setState(() { platforms = active; if (active.isNotEmpty) selS = active.toLowerCase(); });
     if (active.isNotEmpty) fetch();
   }
 
@@ -49,7 +49,7 @@ class _TVHomePageState extends State<TVHomePage> {
     
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id", forceRefresh: forceRefresh);
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
-      setState(() => banner = bRes['data'][0]);
+      setState(() => banner = bRes['data']);
     } else {
       setState(() => banner = null);
     }
@@ -99,20 +99,27 @@ class _TVHomePageState extends State<TVHomePage> {
       child: Scaffold(
         backgroundColor: const Color(0xFF070B11),
         body: Row(children: [
-          FocusScope(
-            child: Container(
-              width: 240, height: double.infinity,
-              padding: const EdgeInsets.all(20),
-              // FIXED: Mengganti Colors.white05 yang typo menjadi warna resmi Colors.white12 bawaan Flutter
+          // 1. SIDEBAR DENGAN ANIMASI STRIP KAPSUL MELUNCUR (Ekspansi 70px ke 240px)
+          FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250), // Kecepatan meluncur laci menu
+              curve: Curves.easeInOut,
+              width: _isSidebarExpanded ? 240 : 76,
+              height: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
               decoration: const BoxDecoration(color: Color(0xFF0F1522), border: Border(right: BorderSide(color: Colors.white12, width: 0.5))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Header Logo Box Adaptif
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
-                  child: const Row(children: [
-                    Icon(Icons.play_circle_filled, color: Color(0xFF06B6D4), size: 24),
-                    SizedBox(width: 10),
-                    Text("CineFlow", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: Row(children: [
+                    const Icon(Icons.play_circle_filled, color: Color(0xFF06B6D4), size: 24),
+                    if (_isSidebarExpanded) ...[
+                      const SizedBox(width: 10),
+                      const Text("CineFlow", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ]
                   ]),
                 ),
                 const SizedBox(height: 30),
@@ -124,16 +131,30 @@ class _TVHomePageState extends State<TVHomePage> {
                       final isSelected = _selectedMenuIdx == index;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
-                        child: TVButton(
-                          onTap: () => setState(() => _selectedMenuIdx = index),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                            decoration: BoxDecoration(color: isSelected ? const Color(0xFF1E3A8A).withOpacity(0.5) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-                            child: Row(children: [
-                              Icon(item['icon'], color: isSelected ? const Color(0xFF06B6D4) : Colors.white60, size: 20),
-                              const SizedBox(width: 16),
-                              Text(item['label'], style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                            ]),
+                        child: Focus(
+                          // PICUAN UTAMA: Jika remote D-pad TV menyorot area baris menu ini, bentangkan laci Sidebar
+                          onFocusChange: (hasFocus) {
+                            if (hasFocus) {
+                              setState(() => _isSidebarExpanded = true);
+                            }
+                          },
+                          child: TVButton(
+                            onTap: () {
+                              setState(() => _selectedMenuIdx = index);
+                              // Jika user mengklik menu selain Beranda, tutup laci secara otomatis
+                              if (index != 0) setState(() => _isSidebarExpanded = false);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                              decoration: BoxDecoration(color: isSelected ? const Color(0xFF1E3A8A).withOpacity(0.5) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+                              child: Row(children: [
+                                Icon(item['icon'], color: isSelected ? const Color(0xFF06B6D4) : Colors.white60, size: 20),
+                                if (_isSidebarExpanded) ...[
+                                  const SizedBox(width: 16),
+                                  Expanded(child: Text(item['label'], style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal), maxLines: 1)),
+                                ]
+                              ]),
+                            ),
                           ),
                         ),
                       );
@@ -143,76 +164,81 @@ class _TVHomePageState extends State<TVHomePage> {
               ]),
             ),
           ),
+          
+          // 2. AREA KONTEN SEBELAH KANAN (Otomatis mendeteksi jika remote berpindah ke arah kanan)
           Expanded(
-            child: loading ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4))) : SingleChildScrollView(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (banner != null) Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TVButton(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => TVPlayerPage(id: banner!['id'].toString(), source: selS, title: banner!['title'] ?? 'No Title', ep: '1'))),
-                    child: Container(
-                      height: 200, width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      // FIXED: Mengganti Colors.white05 yang typo menjadi warna resmi Colors.white12 bawaan Flutter
-                      decoration: BoxDecoration(color: const Color(0xFF0F1522), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white12, width: 0.5)),
-                      child: Row(children: [
-                        Expanded(
-                          flex: 3,
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(6)), child: const Text("PROMO", style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold))),
-                            const SizedBox(height: 8),
-                            Text(banner!['title'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 6),
-                            Text(banner!['description'] ?? 'Tonton kisah selengkapnya sekarang juga di server terbaik.', style: const TextStyle(color: Colors.white60, fontSize: 11, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
-                          ]),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          flex: 1,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(banner!['cover'] ?? '', fit: BoxFit.cover, height: double.infinity),
+            child: Focus(
+              // JIKA REMOTE KELUAR KE KANAN (Menuju Film): Kecilkan kembali bilah menu Sidebar secara senyap
+              onFocusChange: (hasFocus) {
+                if (hasFocus && _isSidebarExpanded) {
+                  setState(() => _isSidebarExpanded = false);
+                }
+              },
+              child: loading ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4))) : SingleChildScrollView(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (banner != null) Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TVButton(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => TVPlayerPage(id: banner!['id'].toString(), source: selS, title: banner!['title'] ?? 'No Title', ep: '1'))),
+                      child: Container(
+                        height: 200, width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(color: const Color(0xFF0F1522), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white12, width: 0.5)),
+                        child: Row(children: [
+                          Expanded(
+                            flex: 3,
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(6)), child: const Text("PROMO", style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold))),
+                              const SizedBox(height: 8),
+                              Text(banner!['title'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 6),
+                              Text(banner!['description'] ?? 'Tonton kisah selengkapnya sekarang juga di server terbaik.', style: const TextStyle(color: Colors.white60, fontSize: 11, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
+                            ]),
                           ),
-                        ),
-                      ]),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            flex: 1,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(banner!['cover'] ?? '', fit: BoxFit.cover, height: double.infinity),
+                            ),
+                          ),
+                        ]),
+                      ),
                     ),
                   ),
-                ),
-                if (platforms.isNotEmpty) SizedBox(
-                  height: 38,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: platforms.length,
-                    itemBuilder: (context, index) {
-                      final p = platforms[index]; final isSel = selS == p.toLowerCase();
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: TVButton(
-                          onTap: () { setState(() => selS = p.toLowerCase()); fetch(); },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16), alignment: Alignment.center,
-                            decoration: BoxDecoration(color: isSel ? const Color(0xFF1E3A8A) : const Color(0xFF1E293B), borderRadius: BorderRadius.circular(30), border: Border.all(color: isSel ? const Color(0xFF06B6D4) : Colors.transparent, width: 1)),
-                            child: Text(p, style: TextStyle(color: isSel ? const Color(0xFF06B6D4) : Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  if (platforms.isNotEmpty) SizedBox(
+                    height: 38,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: platforms.length,
+                      itemBuilder: (context, index) {
+                        final p = platforms[index]; final isSel = selS == p.toLowerCase();
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: TVButton(
+                            onTap: () { setState(() => selS = p.toLowerCase()); fetch(); },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16), alignment: Alignment.center,
+                              decoration: BoxDecoration(color: isSel ? const Color(0xFF1E3A8A) : const Color(0xFF1E293B), borderRadius: BorderRadius.circular(30), border: Border.all(color: isSel ? const Color(0xFF06B6D4) : Colors.transparent, width: 1)),
+                              child: Text(p, style: TextStyle(color: isSel ? const Color(0xFF06B6D4) : Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, top: 16, right: 16),
-                  child: Row(children: [
-                    TVButton(onTap: () { setState(() => selC = "Dubbing"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: selC == "Dubbing" ? Colors.white12 : Colors.transparent, borderRadius: BorderRadius.circular(20)), child: Text("Populer", style: TextStyle(color: selC == "Dubbing" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
-                    const SizedBox(width: 10),
-                    TVButton(onTap: () { setState(() => selC = "Terbaru"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: selC == "Terbaru" ? Colors.white12 : Colors.transparent, borderRadius: BorderRadius.circular(20)), child: Text("Baru", style: TextStyle(color: selC == "Terbaru" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
-                  ]),
-                ),
-                if (selC == "Dubbing") ...[
-                  _buildGrid(popularList),
-                ] else ...[
-                  _buildGrid(terbaruList),
-                ],
-                const SizedBox(height: 20),
-              ]),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, top: 16, right: 16),
+                    child: Row(children: [
+                      TVButton(onTap: () { setState(() => selC = "Dubbing"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: selC == "Dubbing" ? Colors.white12 : Colors.transparent, borderRadius: BorderRadius.circular(20)), child: Text("Populer", style: TextStyle(color: selC == "Dubbing" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
+                      const SizedBox(width: 10),
+                      TVButton(onTap: () { setState(() => selC = "Terbaru"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: selC == "Terbaru" ? Colors.white12 : Colors.transparent, borderRadius: BorderRadius.circular(20)), child: Text("Baru", style: TextStyle(color: selC == "Terbaru" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
+                    ]),
+                  ),
+                  _buildGrid(selC == "Dubbing" ? popularList : terbaruList),
+                  const SizedBox(height: 20),
+                ]),
+              ),
             ),
           ),
         ]),
