@@ -15,7 +15,6 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
   bool _isChecking = false;
   String _lastCheckTime = "";
   
-  // 6 platform utama
   final List<Map<String, String>> _primaryPlatforms = [
     {"id": "melolo", "name": "Melolo"},
     {"id": "freereels", "name": "FreeReels"},
@@ -25,7 +24,6 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
     {"id": "goodshort", "name": "GoodShort"},
   ];
   
-  // 18 platform cadangan
   final List<Map<String, String>> _backupPlatforms = [
     {"id": "moviebox", "name": "Moviebox"},
     {"id": "anichin", "name": "Anichin"},
@@ -51,9 +49,9 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
   void initState() {
     super.initState();
     _loadSources();
-    // Jalankan failover di background
+    // Auto cek status saat masuk halaman
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAllStatuses();
+      _checkAllStatuses(auto: true);
     });
   }
 
@@ -61,30 +59,37 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
     final prefs = await SharedPreferences.getInstance();
     final List<SourceItem> temp = [];
     
-    // Primary: default aktif
     for (var p in _primaryPlatforms) {
       final isActive = prefs.getBool('source_${p['id']}') ?? true;
+      // Cek status tersimpan
+      final savedStatus = prefs.getString('status_${p['id']}');
+      final savedColor = prefs.getString('color_${p['id']}');
+      final savedMessage = prefs.getString('message_${p['id']}');
+      
       temp.add(SourceItem(
         id: p['id']!,
         name: p['name']!,
         isActive: isActive,
-        status: "unknown",
-        statusColor: "⚪",
-        statusMessage: "Belum dicek",
+        status: savedStatus ?? "unknown",
+        statusColor: savedColor ?? "⚪",
+        statusMessage: savedMessage ?? "Belum dicek",
         isPrimary: true,
       ));
     }
     
-    // Backup: default nonaktif
     for (var p in _backupPlatforms) {
       final isActive = prefs.getBool('source_${p['id']}') ?? false;
+      final savedStatus = prefs.getString('status_${p['id']}');
+      final savedColor = prefs.getString('color_${p['id']}');
+      final savedMessage = prefs.getString('message_${p['id']}');
+      
       temp.add(SourceItem(
         id: p['id']!,
         name: p['name']!,
         isActive: isActive,
-        status: "unknown",
-        statusColor: "⚪",
-        statusMessage: "Belum dicek",
+        status: savedStatus ?? "unknown",
+        statusColor: savedColor ?? "⚪",
+        statusMessage: savedMessage ?? "Belum dicek",
         isPrimary: false,
       ));
     }
@@ -92,13 +97,16 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
     setState(() => _sources = temp);
   }
 
-  Future<void> _checkAllStatuses() async {
+  Future<void> _checkAllStatuses({bool auto = false}) async {
+    if (_isChecking) return;
+    
     setState(() {
       _isChecking = true;
       _lastCheckTime = DateTime.now().toString().substring(11, 16);
     });
     
-    // 1. Cek status semua platform
+    final prefs = await SharedPreferences.getInstance();
+    
     for (int i = 0; i < _sources.length; i++) {
       final result = await PlatformChecker.checkStatus(_sources[i].id);
       setState(() {
@@ -106,30 +114,57 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
         _sources[i].statusColor = result['color'];
         _sources[i].statusMessage = result['message'];
       });
+      
+      await prefs.setString('status_${_sources[i].id}', result['status']);
+      await prefs.setString('color_${_sources[i].id}', result['color']);
+      await prefs.setString('message_${_sources[i].id}', result['message']);
+      
+      if (result['status'] == 'down' && _sources[i].isActive) {
+        setState(() => _sources[i].isActive = false);
+        await prefs.setBool('source_${_sources[i].id}', false);
+      }
     }
-    
-    // 2. Jalankan failover (auto ganti platform mati dengan cadangan)
-    await PlatformChecker.checkAllAndFailover();
-    
-    // 3. Reload sources untuk refleksi perubahan
-    await _loadSources();
     
     setState(() => _isChecking = false);
-    _showNotification("Pengecekan selesai, failover otomatis telah dijalankan");
-  }
-
-  void _showNotification(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
-  }
-
-  Future<void> _saveSources() async {
-    final prefs = await SharedPreferences.getInstance();
-    for (var source in _sources) {
-      await prefs.setBool('source_${source.id}', source.isActive);
+    
+    if (!auto) {
+      _showNotification("Pengecekan selesai, status disimpan");
     }
-    _showNotification("Pengaturan sumber disimpan");
+  }
+
+  Future<void> _saveAndReload() async {
+    setState(() => _isChecking = true);
+    
+    // Cek status ulang sebelum simpan
+    final prefs = await SharedPreferences.getInstance();
+    
+    for (int i = 0; i < _sources.length; i++) {
+      // Cek status terbaru
+      final result = await PlatformChecker.checkStatus(_sources[i].id);
+      setState(() {
+        _sources[i].status = result['status'];
+        _sources[i].statusColor = result['color'];
+        _sources[i].statusMessage = result['message'];
+      });
+      
+      await prefs.setString('status_${_sources[i].id}', result['status']);
+      await prefs.setString('color_${_sources[i].id}', result['color']);
+      await prefs.setString('message_${_sources[i].id}', result['message']);
+      
+      // Simpan status aktif/nonaktif dari user
+      await prefs.setBool('source_${_sources[i].id}', _sources[i].isActive);
+      
+      if (result['status'] == 'down' && _sources[i].isActive) {
+        setState(() => _sources[i].isActive = false);
+        await prefs.setBool('source_${_sources[i].id}', false);
+      }
+    }
+    
+    setState(() => _isChecking = false);
+    _showNotification("Pengaturan disimpan, Home akan reload");
+    
+    // Kembali ke Home dan reload
+    Navigator.pop(context, true);
   }
 
   Future<void> _checkSingleStatus(int index) async {
@@ -140,6 +175,8 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
     });
     
     final result = await PlatformChecker.checkStatus(_sources[index].id);
+    final prefs = await SharedPreferences.getInstance();
+    
     setState(() {
       _sources[index].status = result['status'];
       _sources[index].statusColor = result['color'];
@@ -147,10 +184,22 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
       
       if (result['status'] == 'down' && _sources[index].isActive) {
         _sources[index].isActive = false;
+        prefs.setBool('source_${_sources[index].id}', false);
         _showNotification("${_sources[index].name} server down, dinonaktifkan");
       }
     });
-    await _saveSources();
+    
+    await prefs.setString('status_${_sources[index].id}', result['status']);
+    await prefs.setString('color_${_sources[index].id}', result['color']);
+    await prefs.setString('message_${_sources[index].id}', result['message']);
+    
+    _showNotification("Status ${_sources[index].name}: ${result['message']}");
+  }
+
+  void _showNotification(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
   }
 
   @override
@@ -166,7 +215,7 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, false),
         ),
         actions: [
           if (_isChecking)
@@ -175,7 +224,6 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
       ),
       body: Column(
         children: [
-          // Header info
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.all(16),
@@ -193,9 +241,9 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
                     Text("Terakhir cek: $_lastCheckTime", style: const TextStyle(color: Colors.white54, fontSize: 10)),
                 ]),
                 ElevatedButton.icon(
-                  onPressed: _isChecking ? null : _checkAllStatuses,
+                  onPressed: _isChecking ? null : () => _checkAllStatuses(auto: false),
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text("Cek & Failover"),
+                  label: const Text("Cek Ulang"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4F46E5),
                     minimumSize: const Size(100, 36),
@@ -205,7 +253,6 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
             ),
           ),
           
-          // List platform
           Expanded(
             child: ListView.builder(
               itemCount: _sources.length,
@@ -231,30 +278,33 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
                       source.statusMessage,
                       style: const TextStyle(color: Colors.white54, fontSize: 10),
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!source.isPrimary && source.isActive)
-                          const Icon(Icons.star, color: Color(0xFF06B6D4), size: 16),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.refresh, size: 18, color: Colors.white54),
-                          onPressed: () => _checkSingleStatus(index),
-                        ),
-                        Switch(
-                          value: source.isActive,
-                          onChanged: (value) {
-                            setState(() => source.isActive = value);
-                            _saveSources();
-                            _showNotification("${source.name} ${value ? 'diaktifkan' : 'dinonaktifkan'}");
-                          },
-                          activeColor: const Color(0xFF4F46E5),
-                        ),
-                      ],
+                    trailing: Switch(
+                      value: source.isActive,
+                      onChanged: (value) {
+                        setState(() => source.isActive = value);
+                      },
+                      activeColor: const Color(0xFF4F46E5),
                     ),
                   ),
                 );
               },
+            ),
+          ),
+          
+          // Tombol Simpan Perubahan
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton(
+              onPressed: _saveAndReload,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF06B6D4),
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+              ),
+              child: const Text(
+                "💾 SIMPAN PERUBAHAN",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
           
@@ -276,8 +326,8 @@ class _SourceManagerPageState extends State<SourceManagerPage> {
                   children: [
                     _legendItem("🟢", "Normal", "Server aktif"),
                     _legendItem("🟡", "Lambat", "Response >3 detik"),
-                    _legendItem("🔴", "Down", "Auto nonaktif + failover"),
-                    _legendItem("⭐", "Cadangan", "Aktif karena failover"),
+                    _legendItem("🔴", "Down", "Auto nonaktif"),
+                    _legendItem("⭐", "Utama", "Platform utama"),
                   ],
                 ),
               ],
