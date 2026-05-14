@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'detail/detail_screen.dart';
 import 'player.dart';
 import 'api_service.dart';
@@ -106,69 +107,105 @@ class _HomePageState extends State<HomePage> {
     setState(() => refreshing = false);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    bool isT = MediaQuery.of(context).size.width > 900;
-    
-    Widget buildGrid(List list, {String? title}) {
-      if (list.isEmpty) {
-        return const Padding(
-          padding: EdgeInsets.all(20),
-          child: Center(child: Text("Tidak ada konten", style: TextStyle(color: Colors.white54))),
-        );
-      }
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (title != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 15, top: 10, bottom: 5),
-              child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-            ),
-          GridView.builder(
-            shrinkWrap: true, 
-            physics: const NeverScrollableScrollPhysics(), 
-            padding: const EdgeInsets.all(15), 
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isT ? 7 : 4, 
-              childAspectRatio: 0.65, 
-              crossAxisSpacing: 10, 
-              mainAxisSpacing: 10
-            ),
-            itemCount: list.length > 20 ? 20 : list.length,
-            itemBuilder: (c, i) => GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (ctx) => DetailScreen(
-                      id: list[i]['id'].toString(),
-                      source: selS,
-                      title: list[i]['title'] ?? 'No Title',
-                    ),
-                  ),
-                );
-              },
-              child: Container(
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)]),
-                child: Column(children: [
-                  Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(list[i]['cover'] ?? '', fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[800])))),
-                  const SizedBox(height: 6),
-                  Text(list[i]['title'] ?? 'No Title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.white)),
-                  const SizedBox(height: 2),
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(list[i]['chapters']?.toString() ?? "0 Ep", style: const TextStyle(color: Colors.white54, fontSize: 8)),
-                    const SizedBox(width: 6),
-                    Text(list[i]['views']?.toString() ?? "0", style: const TextStyle(color: Colors.white54, fontSize: 8)),
-                  ]),
-                ]),
-              ),
-            ),
-          ),
-        ],
+  Widget _buildGrid(List list) {
+    if (list.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: Text("Tidak ada konten", style: TextStyle(color: Colors.white54))),
       );
     }
-    
+    return GridView.builder(
+      shrinkWrap: true, 
+      physics: const NeverScrollableScrollPhysics(), 
+      padding: const EdgeInsets.all(12), 
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4, 
+        childAspectRatio: 0.65, 
+        crossAxisSpacing: 10, 
+        mainAxisSpacing: 16
+      ),
+      itemCount: list.length > 20 ? 20 : list.length,
+      itemBuilder: (c, i) {
+        final item = list[i];
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (ctx) => DetailScreen(
+                  id: item['id'].toString(),
+                  source: selS,
+                  title: item['title'] ?? 'No Title',
+                ),
+              ),
+            );
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: item['cover'] ?? '',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        placeholder: (_, __) => Container(color: Colors.grey[800]),
+                        errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
+                      ),
+                    ),
+                    // Label "Sulih Suara" di pojok kiri bawah poster
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          "Sulih Suara",
+                          style: TextStyle(color: Colors.white, fontSize: 8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item['title'] ?? 'No Title',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "${item['chapters'] ?? 0} Ep",
+                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                  ),
+                  Text(
+                    "${item['views'] ?? 0}",
+                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
@@ -294,11 +331,28 @@ class _HomePageState extends State<HomePage> {
                     // Content
                     if (selC == "Dubbing")
                       Column(children: [
-                        if (hasDubbing) buildGrid(dubbingList, title: "Dubbing (Sulih Suara)"),
-                        buildGrid(popularList, title: hasDubbing ? "Populer" : null),
+                        if (hasDubbing) ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 15),
+                            child: Text("Dubbing (Sulih Suara)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                          ),
+                          _buildGrid(dubbingList),
+                        ],
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 15),
+                          child: Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                        ),
+                        if (hasDubbing) const SizedBox(height: 10),
+                        _buildGrid(popularList),
                       ])
                     else
-                      buildGrid(terbaruList, title: "Terbaru"),
+                      Column(children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 15),
+                          child: Text("Terbaru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                        ),
+                        _buildGrid(terbaruList),
+                      ]),
                   ]),
                 ),
       ),
