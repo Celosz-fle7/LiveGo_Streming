@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'ui/home.dart';
 import 'ui/account.dart';
 import 'ui/downloads.dart';
 import 'ui/search_screen.dart';
 import 'ui/history_screen.dart';
+import 'ui/tv/tv_home.dart';
 import 'ui/api_service.dart';
+import 'core/security_checker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,23 +26,30 @@ class MyApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0D1117),
         primaryColor: const Color(0xFF4F46E5),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF4F46E5),
-          secondary: Color(0xFF8B5CF6),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0D1117),
-          elevation: 0,
-          centerTitle: false,
-        ),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFF0D1117),
-          selectedItemColor: Color(0xFF06B6D4),
-          unselectedItemColor: Colors.grey,
-        ),
       ),
-      home: const MainPage(),
+      home: const DeviceWrapper(),
+      routes: {
+        '/history': (context) => const HistoryScreen(),
+        '/search': (context) => const SearchScreen(),
+        '/download': (context) => const DownloadPage(),
+        '/profile': (context) => const AccountPage(),
+      },
     );
+  }
+}
+
+class DeviceWrapper extends StatelessWidget {
+  const DeviceWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isTV = MediaQuery.of(context).size.width > 900;
+    
+    if (isTV) {
+      return const TVHomePage();
+    } else {
+      return const MainPage();
+    }
   }
 }
 
