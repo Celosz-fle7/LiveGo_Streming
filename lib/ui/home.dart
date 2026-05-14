@@ -1,9 +1,11 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'detail/detail_screen.dart';
 import 'player.dart';
 import 'api_service.dart';
+import '../database/database_helper.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,24 +25,57 @@ class _HomePageState extends State<HomePage> {
   bool hasDubbing = false;
   int _loadingProgress = 0;
   int _totalTasks = 0;
+  Set<String> watchedIds = {};
+  
+  final Random _random = Random();
   
   final List<String> allPlatforms = [
-    "Melolo", "FreeReels", " ShortMax", "DramaWave", "NetShort", "GoodShort"
+    "Melolo", "FreeReels", "ShortMax", "DramaWave", "NetShort", "GoodShort"
   ];
 
   @override
   void initState() { 
     super.initState(); 
+    _loadWatchedIds();
     _loadActivePlatforms();
+  }
+
+  Future<void> _loadWatchedIds() async {
+    watchedIds = await DatabaseHelper().getWatchedContentIds();
+  }
+
+  // Filter konten yang sudah ditonton (pindah ke bawah) + acak
+  List _filterAndShuffle(List items, {bool moveWatchedToBottom = true}) {
+    if (items.isEmpty) return [];
+    
+    // Pisahkan yang sudah ditonton dan belum
+    final unwatched = <dynamic>[];
+    final watched = <dynamic>[];
+    
+    for (var item in items) {
+      final id = item['id']?.toString() ?? '';
+      if (moveWatchedToBottom && watchedIds.contains(id)) {
+        watched.add(item);
+      } else {
+        unwatched.add(item);
+      }
+    }
+    
+    // Acak masing-masing grup
+    unwatched.shuffle(_random);
+    watched.shuffle(_random);
+    
+    // Gabungkan: yang belum ditonton di atas, yang sudah ditonton di bawah
+    return [...unwatched, ...watched];
   }
 
   Future<void> _loadActivePlatforms() async {
     final prefs = await SharedPreferences.getInstance();
     final activeList = <String>[];
     for (var p in allPlatforms) {
-      final id = p.trim().toLowerCase();
+      final id = p.toLowerCase();
       final isActive = prefs.getBool('source_$id') ?? true;
-      if (isActive) activeList.add(p.trim());
+      if (isActive) activeList.add(p);
     }
     setState(() {
       platforms = activeList;
@@ -60,6 +95,9 @@ class _HomePageState extends State<HomePage> {
       _totalTasks = 0;
     });
     
+    // Refresh watched IDs
+    await _loadWatchedIds();
+    
     int totalTasks = 1;
     totalTasks += 2;
     setState(() => _totalTasks = totalTasks);
@@ -75,8 +113,8 @@ class _HomePageState extends State<HomePage> {
       if (dubRes != null && dubRes['data'] != null) {
         final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
         setState(() {
-          dubbingList = dubData;
-          hasDubbing = dubData.isNotEmpty;
+          dubbingList = _filterAndShuffle(dubData);
+          hasDubbing = dubbingList.isNotEmpty;
           _loadingProgress++;
         });
       } else {
@@ -86,14 +124,14 @@ class _HomePageState extends State<HomePage> {
       final popRes = await ApiService.get("/api/v2/discover?category_p=$selS&lang=id&page=1", forceRefresh: forceRefresh);
       if (popRes != null && popRes['data'] != null) {
         final popData = popRes['data'] is List ? popRes['data'] : (popRes['data']['dramas'] ?? []);
-        setState(() => popularList = popData);
+        setState(() => popularList = _filterAndShuffle(popData));
       }
       setState(() => _loadingProgress++);
     } else {
       final newRes = await ApiService.get("/api/v2/home?category_p=$selS&lang=id", forceRefresh: forceRefresh);
       if (newRes != null && newRes['data'] != null) {
         final newData = newRes['data'] is List ? newRes['data'] : (newRes['data']['dramas'] ?? []);
-        setState(() => terbaruList = newData);
+        setState(() => terbaruList = _filterAndShuffle(newData));
       }
       setState(() => _loadingProgress++);
     }
@@ -127,6 +165,7 @@ class _HomePageState extends State<HomePage> {
       itemCount: list.length > 12 ? 12 : list.length,
       itemBuilder: (c, i) {
         final item = list[i];
+        final isWatched = watchedIds.contains(item['id']?.toString());
         return GestureDetector(
           onTap: () {
             Navigator.push(
@@ -140,42 +179,59 @@ class _HomePageState extends State<HomePage> {
               ),
             );
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: item['cover'] ?? '',
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    placeholder: (_, __) => Container(color: Colors.grey[800]),
-                    errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                item['title'] ?? 'No Title',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "${item['chapters'] ?? 0} Ep",
-                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: item['cover'] ?? '',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: (_, __) => Container(color: Colors.grey[800]),
+                        errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(height: 6),
                   Text(
-                    "${item['views'] ?? 0}",
-                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                    item['title'] ?? 'No Title',
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        "${item['chapters'] ?? 0} Ep",
+                        style: const TextStyle(color: Colors.white54, fontSize: 9),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "${item['views'] ?? 0}",
+                        style: const TextStyle(color: Colors.white54, fontSize: 9),
+                      ),
+                    ],
                   ),
                 ],
               ),
+              if (isWatched)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  ),
+                ),
             ],
           ),
         );
@@ -203,6 +259,7 @@ class _HomePageState extends State<HomePage> {
       itemCount: list.length > 12 ? 12 : list.length,
       itemBuilder: (c, i) {
         final item = list[i];
+        final isWatched = watchedIds.contains(item['id']?.toString());
         return GestureDetector(
           onTap: () {
             Navigator.push(
@@ -216,42 +273,59 @@ class _HomePageState extends State<HomePage> {
               ),
             );
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: item['cover'] ?? '',
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    placeholder: (_, __) => Container(color: Colors.grey[800]),
-                    errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                item['title'] ?? 'No Title',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "${item['chapters'] ?? 0} Ep",
-                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: item['cover'] ?? '',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: (_, __) => Container(color: Colors.grey[800]),
+                        errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(height: 6),
                   Text(
-                    "${item['views'] ?? 0}",
-                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                    item['title'] ?? 'No Title',
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        "${item['chapters'] ?? 0} Ep",
+                        style: const TextStyle(color: Colors.white54, fontSize: 9),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "${item['views'] ?? 0}",
+                        style: const TextStyle(color: Colors.white54, fontSize: 9),
+                      ),
+                    ],
                   ),
                 ],
               ),
+              if (isWatched)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  ),
+                ),
             ],
           ),
         );
