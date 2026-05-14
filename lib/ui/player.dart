@@ -19,7 +19,7 @@ class _PlayerPageState extends State<PlayerPage> {
   VideoPlayerController? _controller;
   List episodes = [], qualities = [];
   Map? dramaData;
-  bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, _showEpisodeSidebar = false;
+  bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, isFullMode = false;
   int currentEpisode = 1, totalEpisodes = 0;
   double _position = 0, _duration = 0;
   Timer? _hideTimer;
@@ -29,20 +29,15 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.landscapeLeft,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // DEFAULT: Pastikan HP selalu berdiri tegak (Portrait) saat halaman pertama dibuka
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _loadData();
     _checkFavorite();
   }
 
   @override
   void dispose() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _controller?.dispose();
     _hideTimer?.cancel();
@@ -109,9 +104,8 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _startHideTimer() { 
-    if (_showEpisodeSidebar) return; 
     _hideTimer?.cancel(); 
-    _hideTimer = Timer(const Duration(seconds: 4), () { if (mounted && showControls) setState(() => showControls = false); }); 
+    _hideTimer = Timer(const Duration(seconds: 5), () { if (mounted && showControls) setState(() => showControls = false); }); 
   }
   
   void _toggleControls() { setState(() { showControls = !showControls; if (showControls) _startHideTimer(); }); }
@@ -121,6 +115,27 @@ class _PlayerPageState extends State<PlayerPage> {
   void _seekTo(double s) { if (_controller == null) return; _controller!.seekTo(Duration(seconds: s.toInt())); }
   void _nextEpisode() { if (currentEpisode < totalEpisodes) _loadVideo(currentEpisode + 1); }
   void _prevEpisode() { if (currentEpisode > 1) _loadVideo(currentEpisode - 1); }
+
+  // LOGIKA CERDAS: Deteksi tipe video saat tombol Fullscreen diklik
+  void _toggleFullscreen() {
+    setState(() {
+      isFullMode = !isFullMode;
+      if (isFullMode) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+        // Jika aspek rasio video > 1.2 (Artinya video Lanskap/Melebar) -> Putar Layar HP
+        if (videoAspectRatio != null && videoAspectRatio! > 1.2) {
+          SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+        } else {
+          // Jika video potret/tegak -> Biarkan HP tetap berdiri tegak penuh
+          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        }
+      } else {
+        // Keluar dari Fullscreen -> Balikkan HP ke tegak normal
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+      }
+    });
+  }
 
   void _showQualityDialog() {
     if (qualities.isEmpty) return;
@@ -148,92 +163,156 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleControls,
-        child: Stack(children: [
-          Center(
-            child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
-                ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
-                : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
+    // Pembungkus Video Utama
+    Widget videoWidget = Center(
+      child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
+          ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
+          : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
+    );
+
+    // PANEL DETEKSI KETUK CERDAS (Double Tap ala YouTube)
+    Widget gestureOverlay = Stack(children: [
+      Positioned.fill(
+        child: Row(children: [
+          // SISI KIRI: Double tap memundurkan 10 detik
+          Expanded(child: GestureDetector(
+            onTap: _toggleControls,
+            onDoubleTap: _skipBackward,
+            child: Container(color: Colors.transparent),
+          )),
+          // SISI TENGAH: Double tap Play / Pause
+          Expanded(child: GestureDetector(
+            onTap: _toggleControls,
+            onDoubleTap: _togglePlay,
+            child: Container(color: Colors.transparent),
+          )),
+          // SISI KANAN: Double tap mempercepat 10 detik
+          Expanded(child: GestureDetector(
+            onTap: _toggleControls,
+            onDoubleTap: _skipForward,
+            child: Container(color: Colors.transparent),
+          )),
+        ]),
+      ),
+      // Overlay Tombol Kontrol (Muncul/Hilang dalam 5 Detik)
+      if (showControls && !isLoading && _controller != null) ...[
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.only(top: 30, left: 16, right: 16, bottom: 16),
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black54, Colors.transparent], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+            child: Row(children: [
+              IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () { if(isFullMode) { _toggleFullscreen(); } else { Navigator.pop(context); } }),
+              const SizedBox(width: 8),
+              Expanded(child: Text("${widget.title} - Ep $currentEpisode", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+            ]),
           ),
-          
-          if (showControls && !isLoading && _controller != null) ...[
-            Positioned(
-              top: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.only(top: 20, left: 24, right: 24, bottom: 20),
-                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black54, Colors.transparent], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-                child: Row(children: [
-                  IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text("${widget.title} - Ep $currentEpisode / $totalEpisodes", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                  TextButton(onPressed: _showQualityDialog, child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4)))),
-                  IconButton(icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: Colors.red), onPressed: _toggleFavorite),
+        ),
+        // Tombol Kontrol Tengah Layar
+        Center(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(icon: const Icon(Icons.replay_10, color: Colors.white, size: 30), onPressed: _skipBackward),
+            const SizedBox(width: 40),
+            ElevatedButton(onPressed: _togglePlay, style: ElevatedButton.styleFrom(shape: const CircleBorder(), backgroundColor: const Color(0xFF06B6D4), padding: const EdgeInsets.all(12)), child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 32)),
+            const SizedBox(width: 40),
+            IconButton(icon: const Icon(Icons.forward_10, color: Colors.white, size: 30), onPressed: _skipForward),
+          ]),
+        ),
+        // Toolbar Bawah Video (Garis Waktu & Menu)
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                Text(_formatDuration(_position), style: const TextStyle(color: Colors.white, fontSize: 11)),
+                Expanded(child: Slider(value: _position, max: _duration > 0 ? _duration : 1, activeColor: const Color(0xFF06B6D4), inactiveColor: Colors.white24, onChanged: _seekTo)),
+                Text(_formatDuration(_duration), style: const TextStyle(color: Colors.white, fontSize: 11)),
+              ]),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Row(children: [
+                  IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white, size: 20), onPressed: _prevEpisode),
+                  IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 20), onPressed: _nextEpisode),
                 ]),
-              ),
-            ),
-
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
-                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter)),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Row(children: [
-                    Text(_formatDuration(_position), style: const TextStyle(color: Colors.white, fontSize: 12)),
-                    Expanded(child: Slider(value: _position, max: _duration > 0 ? _duration : 1, activeColor: const Color(0xFF06B6D4), inactiveColor: Colors.white24, onChanged: _seekTo)),
-                    Text(_formatDuration(_duration), style: const TextStyle(color: Colors.white, fontSize: 12)),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white, size: 26), onPressed: _prevEpisode),
-                    const SizedBox(width: 20),
-                    IconButton(icon: const Icon(Icons.replay_10, color: Colors.white, size: 26), onPressed: _skipBackward),
-                    const SizedBox(width: 20),
-                    ElevatedButton(onPressed: _togglePlay, style: ElevatedButton.styleFrom(shape: const CircleBorder(), backgroundColor: const Color(0xFF06B6D4), padding: const EdgeInsets.all(10)), child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 30)),
-                    const SizedBox(width: 20),
-                    IconButton(icon: const Icon(Icons.forward_10, color: Colors.white, size: 26), onPressed: _skipForward),
-                    const SizedBox(width: 20),
-                    IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 26), onPressed: _nextEpisode),
-                    const SizedBox(width: 30),
-                    IconButton(icon: const Icon(Icons.format_list_numbered, color: Colors.white, size: 26), onPressed: () => setState(() => _showEpisodeSidebar = true)),
-                  ]),
+                Row(children: [
+                  TextButton(onPressed: _showQualityDialog, child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold))),
+                  IconButton(icon: const Icon(Icons.settings, color: Colors.white, size: 20), onPressed: _showQualityDialog),
+                  IconButton(icon: Icon(isFullMode ? Icons.fullscreen_exit : Icons.fullscreen, color: Colors.white, size: 20), onPressed: _toggleFullscreen),
                 ]),
-              ),
-            ),
-          ],
+              ]),
+            ]),
+          ),
+        ),
+      ]
+    ]);
 
-          if (_showEpisodeSidebar) Positioned(
-            right: 0, top: 0, bottom: 0,
-            child: Container(
-              width: 280, color: const Color(0xFF0F172A).withOpacity(0.95),
-              padding: const EdgeInsets.all(20),
+    // JIKA USER KLIK FULLSCREEN: Render Full Tanpa Layout Detail Bawah
+    if (isFullMode) {
+      return Scaffold(backgroundColor: Colors.black, body: Stack(children: [videoWidget, Positioned.fill(child: gestureOverlay)]));
+    }
+
+    // TAMPILAN NORMAL (POTRET SESUAI GAMBAR ANDA): Video di atas, Detail & Grid Episode di bawah
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1117),
+      body: SafeArea(
+        child: Column(children: [
+          // 1. Area Pemutar Video Utama (Atas Layar)
+          Container(
+            height: 230,
+            color: Colors.black,
+            child: Stack(children: [videoWidget, Positioned.fill(child: gestureOverlay)]),
+          ),
+          // 2. Area Detail Cerita & Grid Kotak Episode (Bawah Layar)
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text("Daftar Episode", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.close, color: Colors.white54, size: 20), onPressed: () => setState(() => _showEpisodeSidebar = false)),
-                ]),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: totalEpisodes,
-                    itemBuilder: (context, index) {
-                      final epNum = index + 1;
-                      final isCurrent = epNum == currentEpisode;
-                      return GestureDetector(
-                        onTap: () { setState(() => _showEpisodeSidebar = false); _loadVideo(epNum); },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                          margin: const EdgeInsets.only(bottom: 6),
-                          // FIXED: Mengganti Colors.white05 yang typo menjadi Colors.white12 bawaan Flutter
-                          decoration: BoxDecoration(color: isCurrent ? const Color(0xFF06B6D4).withOpacity(0.15) : Colors.white12, borderRadius: BorderRadius.circular(8)),
-                          child: Text("Episode $epNum", style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white70, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
-                        ),
-                      );
-                    },
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(4)), child: const Text("SEDANG DIPUTAR", style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold))),
+                const SizedBox(height: 8),
+                Text(widget.title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                if (dramaData != null) Text(dramaData!['description'] ?? 'Tidak ada sinopsis.', style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 16),
+                // Tombol Favorit Lebar Khas Gambar Anda
+                GestureDetector(
+                  onTap: _toggleFavorite,
+                  child: Container(
+                    width: double.infinity, height: 48,
+                    decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF06B6D4)]), borderRadius: BorderRadius.circular(24)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: Colors.white), const SizedBox(width: 8), Text("Favorit", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
                   ),
+                ),
+                const SizedBox(height: 24),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text("DAFTAR EPISODE", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                  Text("$totalEpisodes Ep", style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                ]),
+                const SizedBox(height: 12),
+                // Grid Kotak Episode (1 Sampai Selesai) Sesuai Gambar Anda
+                GridView.builder(
+                  shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, childAspectRatio: 1.0, crossAxisSpacing: 10, mainAxisSpacing: 10),
+                  itemCount: totalEpisodes,
+                  itemBuilder: (context, index) {
+                    final epNum = index + 1;
+                    final isCurrent = epNum == currentEpisode;
+                    return GestureDetector(
+                      onTap: () => _loadVideo(epNum),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isCurrent ? Colors.transparent : const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isCurrent ? const Color(0xFF06B6D4) : Colors.transparent, width: 2),
+                        ),
+                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Text("EPISODE", style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white38, fontSize: 8, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          Text(isCurrent ? "DIPUTAR\n$epNum" : "$epNum", textAlign: TextAlign.center, style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white, fontSize: isCurrent ? 9 : 12, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
+                    );
+                  },
                 ),
               ]),
             ),
