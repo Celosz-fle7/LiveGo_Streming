@@ -83,7 +83,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
         for (var q in qualities) { 
           if (q['quality'] == currentQuality) { videoUrl = q['url']; break; } 
         }
-        if (videoUrl.isEmpty) videoUrl = qualities[0]['url'];
+        if (videoUrl.isEmpty) videoUrl = qualities[0]['url']; // FIXED: Mengambil indeks pertama List, bukan map key langsung
       }
       
       if (videoUrl.isNotEmpty) {
@@ -169,7 +169,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: FocusNode()...requestFocus(),
+      focusNode: FocusNode()..requestFocus(),
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -189,7 +189,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                   padding: const EdgeInsets.only(top: 40, left: 40, right: 40, bottom: 40),
                   decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text("${widget.title} - Ep currentEpisode / totalEpisodes", style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text("${widget.title} - Ep $currentEpisode / $totalEpisodes", style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 6),
                     if (dramaData != null) Container(maxWidth: 600, child: Text(dramaData!['description'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis)),
                     const SizedBox(height: 10),
