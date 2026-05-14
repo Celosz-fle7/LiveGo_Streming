@@ -31,7 +31,6 @@ class _PlayerPageState extends State<PlayerPage> {
   String currentQuality = "Auto";
   List qualities = [];
   bool isFullMode = false; // Mode perbesar (episode list hilang)
-  double? videoAspectRatio;
 
   @override
   void initState() {
@@ -100,7 +99,6 @@ class _PlayerPageState extends State<PlayerPage> {
             setState(() {
               isLoading = false;
               _duration = _controller!.value.duration.inSeconds.toDouble();
-              videoAspectRatio = _controller!.value.aspectRatio;
             });
             _controller!.play();
             isPlaying = true;
@@ -236,8 +234,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = videoAspectRatio != null && videoAspectRatio! > 1;
-    
     return Scaffold(
       backgroundColor: Colors.black,
       body: Column(
@@ -253,20 +249,10 @@ class _PlayerPageState extends State<PlayerPage> {
                     child: isLoading
                         ? const CircularProgressIndicator(color: Color(0xFF06B6D4))
                         : _controller != null && _controller!.value.isInitialized
-                            ? (isLandscape
-                                ? AspectRatio(
-                                    aspectRatio: _controller!.value.aspectRatio,
-                                    child: VideoPlayer(_controller!),
-                                  )
-                                : Container(
-                                    color: Colors.black,
-                                    child: Center(
-                                      child: AspectRatio(
-                                        aspectRatio: _controller!.value.aspectRatio,
-                                        child: VideoPlayer(_controller!),
-                                      ),
-                                    ),
-                                  ))
+                            ? AspectRatio(
+                                aspectRatio: _controller!.value.aspectRatio,
+                                child: VideoPlayer(_controller!),
+                              )
                             : const Center(
                                 child: Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
                               ),
@@ -282,9 +268,9 @@ class _PlayerPageState extends State<PlayerPage> {
                             padding: const EdgeInsets.only(top: 40, left: 16, right: 16),
                             child: Row(
                               children: [
-                                TVButton(
-                                  onTap: () => Navigator.pop(context),
-                                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                                  onPressed: () => Navigator.pop(context),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -294,20 +280,20 @@ class _PlayerPageState extends State<PlayerPage> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                TVButton(
-                                  onTap: _showQualityDialog,
+                                TextButton(
+                                  onPressed: _showQualityDialog,
                                   child: Text(
                                     currentQuality,
                                     style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                TVButton(
-                                  onTap: _toggleFullMode,
-                                  child: Icon(
+                                IconButton(
+                                  icon: Icon(
                                     isFullMode ? Icons.fullscreen_exit : Icons.fullscreen,
                                     color: Colors.white,
                                   ),
+                                  onPressed: _toggleFullMode,
                                 ),
                               ],
                             ),
@@ -342,70 +328,24 @@ class _PlayerPageState extends State<PlayerPage> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    TVButton(
-                                      onTap: _skipBackward,
-                                      child: const Column(
-                                        children: [
-                                          Icon(Icons.replay_10, color: Colors.white, size: 28),
-                                          SizedBox(height: 2),
-                                          Text("-10s", style: TextStyle(color: Colors.white70, fontSize: 10)),
-                                        ],
-                                      ),
+                                    _controlButton(Icons.replay_10, _skipBackward),
+                                    const SizedBox(width: 30),
+                                    _controlButton(
+                                      isPlaying ? Icons.pause : Icons.play_arrow,
+                                      _togglePlay,
+                                      isPlay: true,
                                     ),
                                     const SizedBox(width: 30),
-                                    TVButton(
-                                      onTap: _togglePlay,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFF06B6D4),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          isPlaying ? Icons.pause : Icons.play_arrow,
-                                          color: Colors.white,
-                                          size: 32,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 30),
-                                    TVButton(
-                                      onTap: _skipForward,
-                                      child: const Column(
-                                        children: [
-                                          Icon(Icons.forward_10, color: Colors.white, size: 28),
-                                          SizedBox(height: 2),
-                                          Text("+10s", style: TextStyle(color: Colors.white70, fontSize: 10)),
-                                        ],
-                                      ),
-                                    ),
+                                    _controlButton(Icons.forward_10, _skipForward),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    TVButton(
-                                      onTap: _prevEpisode,
-                                      child: const Column(
-                                        children: [
-                                          Icon(Icons.skip_previous, color: Colors.white, size: 28),
-                                          SizedBox(height: 2),
-                                          Text("Prev", style: TextStyle(color: Colors.white70, fontSize: 10)),
-                                        ],
-                                      ),
-                                    ),
+                                    _controlButton(Icons.skip_previous, _prevEpisode),
                                     const SizedBox(width: 40),
-                                    TVButton(
-                                      onTap: _nextEpisode,
-                                      child: const Column(
-                                        children: [
-                                          Icon(Icons.skip_next, color: Colors.white, size: 28),
-                                          SizedBox(height: 2),
-                                          Text("Next", style: TextStyle(color: Colors.white70, fontSize: 10)),
-                                        ],
-                                      ),
-                                    ),
+                                    _controlButton(Icons.skip_next, _nextEpisode),
                                   ],
                                 ),
                               ],
@@ -450,7 +390,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         final episode = episodes[index];
                         final episodeNum = episode['index'] ?? index + 1;
                         final isCurrent = episodeNum == currentEpisode;
-                        return TVButton(
+                        return GestureDetector(
                           onTap: () => _loadVideo(episodeNum),
                           child: Container(
                             width: 60,
@@ -491,6 +431,19 @@ class _PlayerPageState extends State<PlayerPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _controlButton(IconData icon, VoidCallback onTap, {bool isPlay = false}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(isPlay ? 12 : 8),
+        decoration: isPlay
+            ? BoxDecoration(color: const Color(0xFF06B6D4), shape: BoxShape.circle)
+            : null,
+        child: Icon(icon, color: Colors.white, size: isPlay ? 32 : 24),
       ),
     );
   }
