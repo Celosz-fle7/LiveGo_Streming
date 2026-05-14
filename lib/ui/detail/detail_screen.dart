@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../database/database_helper.dart';
 import '../player.dart';
 import '../api_service.dart';
@@ -8,7 +9,8 @@ class DetailScreen extends StatefulWidget {
   final String id, source, title;
   const DetailScreen({super.key, required this.id, required this.source, required this.title});
 
-  @override State<DetailScreen> createState() => _DetailScreenState();
+  @override
+  State<DetailScreen> createState() => _DetailScreenState();
 }
 
 class _DetailScreenState extends State<DetailScreen> {
@@ -16,12 +18,22 @@ class _DetailScreenState extends State<DetailScreen> {
   List episodes = [];
   bool loading = true;
   bool isFavorite = false;
-  int _selectedRange = 0; // 0: 1-50, 1: 51-99
+  int _selectedRange = 0;
+  bool _showBackgroundPoster = true;
 
-  @override void initState() { 
+  @override
+  void initState() { 
     super.initState(); 
+    _loadSettings();
     _load();
     _checkFavorite();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _showBackgroundPoster = prefs.getBool('bg') ?? true;
+    });
   }
 
   Future<void> _load() async {
@@ -70,12 +82,14 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   Widget build(BuildContext context) {
     bool isT = MediaQuery.of(context).size.width > 900;
+    final posterUrl = data?['cover'] ?? '';
     
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(widget.title, style: const TextStyle(color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
-        backgroundColor: const Color(0xFF0D1117),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -87,6 +101,30 @@ class _DetailScreenState extends State<DetailScreen> {
             onPressed: _toggleFavorite,
           ),
         ],
+        flexibleSpace: _showBackgroundPoster && posterUrl.isNotEmpty
+            ? Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: CachedNetworkImageProvider(posterUrl),
+                        fit: BoxFit.cover,
+                        colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.7), BlendMode.darken),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, const Color(0xFF0D1117)],
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : null,
       ),
       body: loading 
         ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4)))
@@ -94,23 +132,17 @@ class _DetailScreenState extends State<DetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Spacer untuk appbar
+                const SizedBox(height: 100),
+                
                 // Poster & Info Section
                 Container(
-                  height: 280,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [const Color(0xFF1F2937), const Color(0xFF0D1117)],
-                    ),
-                  ),
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Poster
                       Container(
-                        margin: const EdgeInsets.all(16),
                         width: 140,
                         height: 210,
                         decoration: BoxDecoration(
@@ -120,7 +152,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(16),
                           child: CachedNetworkImage(
-                            imageUrl: data?['cover'] ?? '',
+                            imageUrl: posterUrl,
                             fit: BoxFit.cover,
                             width: 140,
                             height: 210,
@@ -129,52 +161,50 @@ class _DetailScreenState extends State<DetailScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 16),
                       // Info
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 16, right: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                data?['title'] ?? widget.title,
-                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                maxLines: 2,
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF06B6D4).withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      "${data?['total_episodes'] ?? episodes.length} Episode",
-                                      style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 11),
-                                    ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              data?['title'] ?? widget.title,
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                              maxLines: 2,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF06B6D4).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Text("Gratis", style: TextStyle(color: Colors.green, fontSize: 11)),
+                                  child: Text(
+                                    "${data?['total_episodes'] ?? episodes.length} Episode",
+                                    style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 11),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                data?['synopsis'] ?? "Tidak ada sinopsis",
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                maxLines: 5,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text("Gratis", style: TextStyle(color: Colors.green, fontSize: 11)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              data?['synopsis'] ?? "Tidak ada sinopsis",
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              maxLines: 5,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
                     ],
