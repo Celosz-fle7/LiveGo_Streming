@@ -141,3 +141,10 @@ class DatabaseHelper {
     final result = await db.query('history', columns: ['drama_id']);
     return result.map((e) => e['drama_id'] as String).toSet();
   }
+
+  // Ambil daftar ID konten yang sudah ditonton
+  Future<Set<String>> getWatchedContentIds() async {
+    final db = await database;
+    final result = await db.query('history', columns: ['drama_id']);
+    return result.map((e) => e['drama_id'] as String).toSet();
+  }
