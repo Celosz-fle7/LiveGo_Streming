@@ -39,7 +39,6 @@ class _TVHomePageState extends State<TVHomePage> {
     }
     setState(() { 
       platforms = active; 
-      // FIXED: Menggunakan active.first untuk mengambil teks kata pertama dari list data
       if (active.isNotEmpty) selS = active.first.toLowerCase(); 
     });
     if (active.isNotEmpty) fetch();
@@ -101,6 +100,7 @@ class _TVHomePageState extends State<TVHomePage> {
       child: Scaffold(
         backgroundColor: const Color(0xFF070B11),
         body: Row(children: [
+          // 1. SIDEBAR KIRI DENGAN TIMBULAN NEON BORDER SEBELAH KANAN
           FocusTraversalGroup(
             policy: OrderedTraversalPolicy(),
             child: AnimatedContainer(
@@ -109,16 +109,18 @@ class _TVHomePageState extends State<TVHomePage> {
               width: _isSidebarExpanded ? 240 : 76,
               height: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-              decoration: const BoxDecoration(color: Color(0xFF0F1522), border: Border(right: BorderSide(color: Colors.white12, width: 0.5))),
+              // Pembatas garis vertikal diganti abu-abu baja kontras agar bersanding estetik dengan warna neon
+              decoration: const BoxDecoration(color: Color(0xFF0F1522), border: Border(right: BorderSide(color: Color(0xFF1E293B), width: 1))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Header Logo Box: Diubah resmi menjadi LiveGO (Khas Gambar Rujukan)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF06B6D4).withOpacity(0.3), width: 0.5)),
                   child: Row(children: [
                     const Icon(Icons.play_circle_filled, color: Color(0xFF06B6D4), size: 24),
                     if (_isSidebarExpanded) ...[
                       const SizedBox(width: 10),
-                      const Text("CineFlow", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const Text("LiveGO", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                     ]
                   ]),
                 ),
@@ -132,11 +134,7 @@ class _TVHomePageState extends State<TVHomePage> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Focus(
-                          onFocusChange: (hasFocus) {
-                            if (hasFocus) {
-                              setState(() => _isSidebarExpanded = true);
-                            }
-                          },
+                          onFocusChange: (hasFocus) { if (hasFocus) setState(() => _isSidebarExpanded = true); },
                           child: TVButton(
                             onTap: () {
                               setState(() => _selectedMenuIdx = index);
@@ -144,7 +142,7 @@ class _TVHomePageState extends State<TVHomePage> {
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                              decoration: BoxDecoration(color: isSelected ? const Color(0xFF1E3A8A).withOpacity(0.5) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+                              decoration: BoxDecoration(color: isSelected ? const Color(0xFF1E3A8A).withOpacity(0.4) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
                               child: Row(children: [
                                 Icon(item['icon'], color: isSelected ? const Color(0xFF06B6D4) : Colors.white60, size: 20),
                                 if (_isSidebarExpanded) ...[
@@ -162,46 +160,57 @@ class _TVHomePageState extends State<TVHomePage> {
               ]),
             ),
           ),
+          
+          // 2. PANEL ISI UTAMA SEBELAH KANAN
           Expanded(
             child: Focus(
-              onFocusChange: (hasFocus) {
-                if (hasFocus && _isSidebarExpanded) {
-                  setState(() => _isSidebarExpanded = false);
-                }
-              },
+              onFocusChange: (hasFocus) { if (hasFocus && _isSidebarExpanded) setState(() => _isSidebarExpanded = false); },
               child: loading ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4))) : SingleChildScrollView(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // DETAIL 1: BANNER DENGAN BINGKAI NEON BERSINAR CYAN (Khas Gambar Rujukan TV Anda)
                   if (banner != null) Padding(
                     padding: const EdgeInsets.all(16),
                     child: TVButton(
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => TVPlayerPage(id: banner!['id'].toString(), source: selS, title: banner!['title'] ?? 'No Title', ep: '1'))),
                       child: Container(
                         height: 200, width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: const Color(0xFF0F1522), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white12, width: 0.5)),
-                        child: Row(children: [
-                          Expanded(
-                            flex: 3,
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(6)), child: const Text("PROMO", style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold))),
-                              const SizedBox(height: 8),
-                              Text(banner!['title'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 6),
-                              Text(banner!['description'] ?? 'Tonton kisah selengkapnya sekarang juga di server terbaik.', style: const TextStyle(color: Colors.white60, fontSize: 11, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
-                            ]),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            flex: 1,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F1522), 
+                          borderRadius: BorderRadius.circular(20),
+                          // Pasang Garis Neon Bersinar Cyan di sekeliling kotak banner TV
+                          border: Border.all(color: const Color(0xFF06B6D4), width: 1.2),
+                          boxShadow: [BoxShadow(color: const Color(0xFF06B6D4).withOpacity(0.12), blurRadius: 12, spreadRadius: 1)],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(19),
+                          child: Row(children: [
+                            // Kiri Banner: Judul & Deskripsi
+                            Expanded(
+                              flex: 3,
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFF06B6D4), width: 0.5)), child: const Text("MOVIEBOX", style: TextStyle(color: Color(0xFF06B6D4), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5))),
+                                  const SizedBox(height: 10),
+                                  Text(banner!['title'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 6),
+                                  Text(banner!['description'] ?? 'Tonton kisah selengkapnya sekarang juga di server terbaik terenkripsi.', style: const TextStyle(color: Colors.white60, fontSize: 11, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
+                                ]),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            // Kanan Banner: Gambar Poster Berdiri Tegak
+                            Expanded(
+                              flex: 1,
                               child: Image.network(banner!['cover'] ?? '', fit: BoxFit.cover, height: double.infinity),
                             ),
-                          ),
-                        ]),
+                          ]),
+                        ),
                       ),
                     ),
                   ),
+                  
+                  // PLATFORM SELECTOR TABS BAR (KAPSUL LANDSCAPE)
                   if (platforms.isNotEmpty) SizedBox(
                     height: 38,
                     child: ListView.builder(
@@ -222,14 +231,18 @@ class _TVHomePageState extends State<TVHomePage> {
                       },
                     ),
                   ),
+                  
+                  // DETAIL 2: TOMBOL KATEGORI BERBENTUK KAPSUL OVAL (Penyelarasan Selaras HP)
                   Padding(
                     padding: const EdgeInsets.only(left: 16, top: 16, right: 16),
                     child: Row(children: [
-                      TVButton(onTap: () { setState(() => selC = "Dubbing"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: selC == "Dubbing" ? Colors.white12 : Colors.transparent, borderRadius: BorderRadius.circular(20)), child: Text("Populer", style: TextStyle(color: selC == "Dubbing" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
-                      const SizedBox(width: 10),
-                      TVButton(onTap: () { setState(() => selC = "Terbaru"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: selC == "Terbaru" ? Colors.white12 : Colors.transparent, borderRadius: BorderRadius.circular(20)), child: Text("Baru", style: TextStyle(color: selC == "Terbaru" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
+                      TVButton(onTap: () { setState(() => selC = "Dubbing"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8), decoration: BoxDecoration(color: selC == "Dubbing" ? const Color(0xFF1E3A8A).withOpacity(0.3) : Colors.transparent, borderRadius: BorderRadius.circular(20), border: Border.all(color: selC == "Dubbing" ? const Color(0xFF06B6D4) : Colors.white12, width: 1)), child: Text("Populer", style: TextStyle(color: selC == "Dubbing" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
+                      const SizedBox(width: 8),
+                      TVButton(onTap: () { setState(() => selC = "Terbaru"); fetch(); }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8), decoration: BoxDecoration(color: selC == "Terbaru" ? const Color(0xFF1E3A8A).withOpacity(0.3) : Colors.transparent, borderRadius: BorderRadius.circular(20), border: Border.all(color: selC == "Terbaru" ? const Color(0xFF06B6D4) : Colors.white12, width: 1)), child: Text("Baru", style: TextStyle(color: selC == "Terbaru" ? const Color(0xFF06B6D4) : Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)))),
                     ]),
                   ),
+                  
+                  // GRID POSTER DAFTAR FILM
                   _buildGrid(selC == "Dubbing" ? popularList : terbaruList),
                   const SizedBox(height: 20),
                 ]),
