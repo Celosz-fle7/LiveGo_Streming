@@ -12,7 +12,8 @@ class PlayerPage extends StatefulWidget {
   final String? ep;
   const PlayerPage({super.key, required this.id, required this.source, required this.title, this.ep});
 
-  @override State<PlayerPage> createState() => _PlayerPageState();
+  @override
+  State<PlayerPage> createState() => _PlayerPageState();
 }
 
 class _PlayerPageState extends State<PlayerPage> {
@@ -29,12 +30,14 @@ class _PlayerPageState extends State<PlayerPage> {
   Timer? _hideTimer;
   String currentQuality = "Auto";
   List qualities = [];
-  bool isFullscreen = false;
+  bool isFullMode = false; // Mode perbesar (episode list hilang)
+  double? videoAspectRatio;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
   }
 
   Future<void> _loadData() async {
@@ -97,6 +100,7 @@ class _PlayerPageState extends State<PlayerPage> {
             setState(() {
               isLoading = false;
               _duration = _controller!.value.duration.inSeconds.toDouble();
+              videoAspectRatio = _controller!.value.aspectRatio;
             });
             _controller!.play();
             isPlaying = true;
@@ -172,21 +176,19 @@ class _PlayerPageState extends State<PlayerPage> {
   void _nextEpisode() {
     if (currentEpisode < totalEpisodes) {
       _loadVideo(currentEpisode + 1);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ini adalah episode terakhir")),
-      );
     }
   }
 
   void _prevEpisode() {
     if (currentEpisode > 1) {
       _loadVideo(currentEpisode - 1);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ini adalah episode pertama")),
-      );
     }
+  }
+
+  void _toggleFullMode() {
+    setState(() {
+      isFullMode = !isFullMode;
+    });
   }
 
   void _showQualityDialog() {
@@ -217,19 +219,6 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  void _toggleFullscreen() {
-    setState(() {
-      isFullscreen = !isFullscreen;
-      if (isFullscreen) {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-        SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-      } else {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      }
-    });
-  }
-
   String _formatDuration(double seconds) {
     final duration = Duration(seconds: seconds.toInt());
     final minutes = duration.inMinutes;
@@ -247,27 +236,37 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isTV = MediaQuery.of(context).size.width > 900;
+    final isLandscape = videoAspectRatio != null && videoAspectRatio! > 1;
     
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleControls,
-        child: Column(
-          children: [
-            // Video Player Area (lebar)
-            Expanded(
-              flex: 3,
+      body: Column(
+        children: [
+          // Video Player Area
+          Expanded(
+            flex: isFullMode ? 10 : 6,
+            child: GestureDetector(
+              onTap: _toggleControls,
               child: Stack(
                 children: [
                   Center(
                     child: isLoading
                         ? const CircularProgressIndicator(color: Color(0xFF06B6D4))
                         : _controller != null && _controller!.value.isInitialized
-                            ? AspectRatio(
-                                aspectRatio: _controller!.value.aspectRatio,
-                                child: VideoPlayer(_controller!),
-                              )
+                            ? (isLandscape
+                                ? AspectRatio(
+                                    aspectRatio: _controller!.value.aspectRatio,
+                                    child: VideoPlayer(_controller!),
+                                  )
+                                : Container(
+                                    color: Colors.black,
+                                    child: Center(
+                                      child: AspectRatio(
+                                        aspectRatio: _controller!.value.aspectRatio,
+                                        child: VideoPlayer(_controller!),
+                                      ),
+                                    ),
+                                  ))
                             : const Center(
                                 child: Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
                               ),
@@ -280,7 +279,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         children: [
                           // Top Bar
                           Padding(
-                            padding: const EdgeInsets.only(top: 50, left: 16, right: 16),
+                            padding: const EdgeInsets.only(top: 40, left: 16, right: 16),
                             child: Row(
                               children: [
                                 TVButton(
@@ -289,19 +288,10 @@ class _PlayerPageState extends State<PlayerPage> {
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        widget.title,
-                                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        "Episode $currentEpisode / $totalEpisodes",
-                                        style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    "${widget.title} - Episode $currentEpisode",
+                                    style: const TextStyle(color: Colors.white),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 TVButton(
@@ -313,8 +303,11 @@ class _PlayerPageState extends State<PlayerPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 TVButton(
-                                  onTap: _toggleFullscreen,
-                                  child: const Icon(Icons.fullscreen, color: Colors.white),
+                                  onTap: _toggleFullMode,
+                                  child: Icon(
+                                    isFullMode ? Icons.fullscreen_exit : Icons.fullscreen,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ],
                             ),
@@ -388,7 +381,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -424,9 +417,11 @@ class _PlayerPageState extends State<PlayerPage> {
                 ],
               ),
             ),
-            // Episode List (horizontal scroll)
+          ),
+          // Episode List (hanya muncul jika tidak dalam mode full)
+          if (!isFullMode)
             Container(
-              height: 100,
+              height: 120,
               color: const Color(0xFF0D1117),
               child: Column(
                 children: [
@@ -495,11 +490,8 @@ class _PlayerPageState extends State<PlayerPage> {
                 ],
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
-  // Tambahkan di dalam _loadVideo setelah controller initialize:
-  // if (resumePosition > 0) _controller!.seekTo(Duration(seconds: resumePosition));
