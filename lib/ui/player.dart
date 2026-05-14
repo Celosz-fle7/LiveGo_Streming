@@ -19,12 +19,11 @@ class _PlayerPageState extends State<PlayerPage> {
   VideoPlayerController? _controller;
   List episodes = [], qualities = [], audioTracks = [], subtitles = [];
   Map? dramaData;
-  bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, isFullMode = false;
+  bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, isFullMode = false, _showEpisodeSidebar = false;
   int currentEpisode = 1, totalEpisodes = 0;
   double _position = 0, _duration = 0;
   Timer? _hideTimer;
   
-  // Status Pengaturan Player Baru
   String currentQuality = "Auto";
   bool isAutoNext = true;
   double currentSpeed = 1.0;
@@ -94,18 +93,14 @@ class _PlayerPageState extends State<PlayerPage> {
       String videoUrl = '';
       if (qualities.isNotEmpty) {
         for (var q in qualities) { if (q['quality'] == currentQuality) { videoUrl = q['url']; break; } }
-        if (videoUrl.isEmpty) videoUrl = qualities[0]['url'];
+        if (videoUrl.isEmpty) videoUrl = qualities['url'];
       }
       
       if (videoUrl.isNotEmpty) {
         _controller?.dispose();
         _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
           ..initialize().then((_) {
-            setState(() { 
-              isLoading = false; 
-              _duration = _controller!.value.duration.inSeconds.toDouble(); 
-              videoAspectRatio = _controller!.value.aspectRatio; 
-            });
+            setState(() { isLoading = false; _duration = _controller!.value.duration.inSeconds.toDouble(); videoAspectRatio = _controller!.value.aspectRatio; });
             if (startPosition != null) _controller!.seekTo(startPosition);
             _controller!.setPlaybackSpeed(currentSpeed);
             _controller!.play(); isPlaying = true; _startHideTimer();
@@ -151,7 +146,6 @@ class _PlayerPageState extends State<PlayerPage> {
     });
   }
 
-  // FUNGSI UTAMA: Memanggil Dialog Menu Pengaturan Utama Persis Seperti Foto Kotak Putih Anda
   void _showMainSettingsDialog() {
     showDialog(
       context: context,
@@ -161,7 +155,7 @@ class _PlayerPageState extends State<PlayerPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildSettingsItem("Kualitas Video", currentQuality, _showQualitySelection),
+            _buildSettingsItem("Kualitas Video", currentQuality, () => _showQualitySelection(closeParent: true)),
             _buildSettingsItem("Auto Next", isAutoNext ? "Aktif" : "Mati", _toggleAutoNextSetting),
             _buildSettingsItem("Kecepatan Pemutaran", "${currentSpeed}x", _showSpeedSelection),
             _buildSettingsItem("Audio Track (Dubbing)", currentAudio, _showAudioSelection),
@@ -187,9 +181,8 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  // SUB-DIALOG 1: Pilihan Kualitas Video dari Data API Stream
-  void _showQualitySelection() {
-    Navigator.pop(context);
+  void _showQualitySelection({bool closeParent = false}) {
+    if (closeParent) Navigator.pop(context);
     if (qualities.isEmpty) return;
     showDialog(
       context: context,
@@ -208,7 +201,6 @@ class _PlayerPageState extends State<PlayerPage> {
                 final prefs = await SharedPreferences.getInstance();
                 prefs.setString('pref_quality', currentQuality);
                 Navigator.pop(c);
-                // Ganti Kualitas Tanpa Mengulang Video dari Awal Menit (Seamless Switch)
                 final currentPos = _controller?.value.position ?? Duration.zero;
                 _loadVideo(currentEpisode, startPosition: currentPos);
               },
@@ -219,7 +211,6 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  // SUB-LOGiKA 2: Sakelar Auto Next On/Off
   void _toggleAutoNextSetting() async {
     Navigator.pop(context);
     setState(() => isAutoNext = !isAutoNext);
@@ -227,7 +218,6 @@ class _PlayerPageState extends State<PlayerPage> {
     prefs.setBool('pref_autonext', isAutoNext);
   }
 
-  // SUB-DIALOG 3: Kecepatan Putar Video (Playback Speed)
   void _showSpeedSelection() {
     Navigator.pop(context);
     final speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
@@ -254,13 +244,9 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  // SUB-DIALOG 4: Jalur Bahasa Suara/Dubbing dari API
   void _showAudioSelection() {
     Navigator.pop(context);
-    if (audioTracks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Hanya tersedia 1 jalur audio default"), duration: Duration(seconds: 1)));
-      return;
-    }
+    if (audioTracks.isEmpty) return;
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
@@ -273,11 +259,7 @@ class _PlayerPageState extends State<PlayerPage> {
             return ListTile(
               title: Text(lang, style: const TextStyle(color: Colors.black87)),
               trailing: currentAudio == lang ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
-              onTap: () {
-                setState(() => currentAudio = lang);
-                Navigator.pop(c);
-                // Jalankan refresh stream url audio jika url track-nya terpisah dari API
-              },
+              onTap: () { setState(() => currentAudio = lang); Navigator.pop(c); },
             );
           }).toList(),
         ),
@@ -285,13 +267,9 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  // SUB-DIALOG 5: Teks Terjemahan / Subtitle dari API
   void _showSubtitleSelection() {
     Navigator.pop(context);
-    if (subtitles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Subtitle tidak tersedia pada video ini"), duration: Duration(seconds: 1)));
-      return;
-    }
+    if (subtitles.isEmpty) return;
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
@@ -310,10 +288,7 @@ class _PlayerPageState extends State<PlayerPage> {
               return ListTile(
                 title: Text(subLang, style: const TextStyle(color: Colors.black87)),
                 trailing: currentSubtitle == subLang ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
-                onTap: () {
-                  setState(() => currentSubtitle = subLang);
-                  Navigator.pop(c);
-                },
+                onTap: () { setState(() => currentSubtitle = subLang); Navigator.pop(c); },
               );
             }),
           ],
@@ -353,6 +328,10 @@ class _PlayerPageState extends State<PlayerPage> {
               IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () { if(isFullMode) { _toggleFullscreen(); } else { Navigator.pop(context); } }),
               const SizedBox(width: 8),
               Expanded(child: Text("${widget.title} - Ep $currentEpisode", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              TextButton(
+                onPressed: () => _showQualitySelection(closeParent: false),
+                child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold)),
+              ),
             ]),
           ),
         ),
@@ -382,8 +361,11 @@ class _PlayerPageState extends State<PlayerPage> {
                   IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 20), onPressed: _nextEpisode),
                 ]),
                 Row(children: [
-                  TextButton(onPressed: _showMainSettingsDialog, child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold))),
-                  // TOMBOL RODA GIGI (⚙) -> Sekarang memanggil Kotak Dialog Pengaturan Utama Lengkap
+                  // FIXED: Mengubah aksi TextButton bar bawah ini dari _showMainSettingsDialog menjadi _showQualitySelection langsung!
+                  TextButton(
+                    onPressed: () => _showQualitySelection(closeParent: false),
+                    child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
                   IconButton(icon: const Icon(Icons.settings, color: Colors.white, size: 20), onPressed: _showMainSettingsDialog),
                   IconButton(icon: Icon(isFullMode ? Icons.fullscreen_exit : Icons.fullscreen, color: Colors.white, size: 20), onPressed: _toggleFullscreen),
                 ]),
@@ -463,7 +445,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         ),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                           Text("EPISODE", style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white38, fontSize: 8, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 2),
                           Text(isCurrent ? "DIPUTAR\n$epNum" : "$epNum", textAlign: TextAlign.center, style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white, fontSize: isCurrent ? 9 : 12, fontWeight: FontWeight.bold)),
                         ]),
                       ),
