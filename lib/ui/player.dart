@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_subtitle/flutter_subtitle.dart' as sub;
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'api_service.dart';
@@ -17,15 +16,15 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   VideoPlayerController? _controller;
-  sub.SubtitleController? _subtitleController;
   List episodes = [], qualities = [], audioTracks = [], subtitles = [];
   Map? dramaData;
-  bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, isFullMode = false, _showEpisodeSidebar = false;
+  bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, isFullMode = false;
   int currentEpisode = 1, totalEpisodes = 0;
   double _position = 0, _duration = 0;
   Timer? _hideTimer;
   String currentQuality = "Auto", currentAudio = "Default", currentSubtitle = "Mati";
   bool isSubtitleOn = false; double? videoAspectRatio;
+  List<Map<String, dynamic>> parsedSubtitles = [];
 
   @override
   void initState() { super.initState(); SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]); _loadData(); _checkFavorite(); }
@@ -55,7 +54,7 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _loadVideo(int epNum, {Duration? startPos}) async {
-    setState(() { isLoading = true; currentEpisode = epNum; });
+    setState(() { isLoading = true; currentEpisode = epNum; parsedSubtitles.clear(); });
     await DatabaseHelper().addToHistory({'drama_id': widget.id, 'drama_title': widget.title, 'drama_poster': dramaData?['cover'], 'episode_id': epNum.toString(), 'episode_number': epNum, 'position_seconds': startPos?.inSeconds ?? 0, 'duration_seconds': 0, 'last_watched': DateTime.now().millisecondsSinceEpoch, 'platform': widget.source});
     final res = await ApiService.get("/api/v2/video?category_p=${widget.source}&id=${widget.id}&chapterId=$epNum&lang=id");
     if (res != null && res['success'] == true && res['data'] != null) {
@@ -74,7 +73,7 @@ class _PlayerPageState extends State<PlayerPage> {
         });
         _controller!.addListener(() {
           if (mounted) setState(() { _position = _controller!.value.position.inSeconds.toDouble(); _duration = _controller!.value.duration.inSeconds.toDouble(); });
-          if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) _loadVideo(currentEpisode + 1);
+          if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) _nextEpisode();
         });
       } else { setState(() => isLoading = false); }
     } else { setState(() => isLoading = false); }
@@ -94,8 +93,30 @@ class _PlayerPageState extends State<PlayerPage> {
   Future<void> _fetchSubtitleFile(String url) async {
     try {
       final r = await http.get(Uri.parse(url));
-      if (r.statusCode == 200) setState(() => _subtitleController = sub.SubtitleController(provider: sub.SubtitleProvider.fromString(r.body)));
-    } catch (_) { setState(() => _subtitleController = null); }
+      if (r.statusCode == 200) _parseWebVTT(r.body);
+    } catch (_) {}
+  }
+
+  // Core internal parser untuk memotong baris teks WebVTT (.vtt) menjadi millidetek tontonan
+  void _parseWebVTT(String data) {
+    final lines = data.split('\n');
+    List<Map<String, dynamic>> temp = [];
+    RegExp timeRegex = RegExp(r'(\d+):(\d+):(\d+)\.(\d+)\s+-->\s+(\d+):(\d+):(\d+)\.(\d+)');
+    
+    for (int i = 0; i < lines.length; i++) {
+      if (timeRegex.hasMatch(lines[i])) {
+        final match = timeRegex.firstMatch(lines[i])!;
+        final start = Duration(hours: int.parse(match[1]!), minutes: int.parse(match[2]!), seconds: int.parse(match[3]!), milliseconds: int.parse(match[4]!));
+        final end = Duration(hours: int.parse(match[5]!), minutes: int.parse(match[6]!), seconds: int.parse(match[7]!), milliseconds: int.parse(match[8]!));
+        String text = "";
+        while (i + 1 < lines.length && lines[i + 1].trim().isNotEmpty && !timeRegex.hasMatch(lines[i + 1])) {
+          text += (text.isEmpty ? "" : "\n") + lines[i + 1].trim();
+          i++;
+        }
+        temp.add({'start': start.inMilliseconds, 'end': end.inMilliseconds, 'text': text});
+      }
+    }
+    setState(() => parsedSubtitles = temp);
   }
 
   void _startHideTimer() { _hideTimer?.cancel(); _hideTimer = Timer(const Duration(seconds: 5), () { if (mounted && showControls) setState(() => showControls = false); }); }
@@ -104,6 +125,8 @@ class _PlayerPageState extends State<PlayerPage> {
   void _skipForward() { _controller?.seekTo(_controller!.value.position + const Duration(seconds: 10)); }
   void _skipBackward() { _controller?.seekTo(_controller!.value.position - const Duration(seconds: 10)); }
   void _seekTo(double s) { _controller?.seekTo(Duration(seconds: s.toInt())); }
+  void _nextEpisode() { if (currentEpisode < totalEpisodes) _loadVideo(currentEpisode + 1); }
+  void _prevEpisode() { if (currentEpisode > 1) _loadVideo(currentEpisode - 1); }
 
   void _toggleFullscreen() {
     setState(() {
@@ -160,8 +183,21 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget subOverlay = (_controller != null && _subtitleController != null && isSubtitleOn)
-        ? Positioned(bottom: showControls ? 90 : 25, left: 20, right: 20, child: ValueListenableBuilder(valueListenable: _controller!, builder: (context, VideoPlayerValue val, child) => sub.SubtitleView(controller: _subtitleController, videoPosition: val.position, subtitleStyle: const sub.SubtitleStyle(fontSize: 14, textColor: Colors.white, backgroundColor: Colors.black54))))
+    // Merender text subtitle murni menggunakan data internal Map Array secara realtime
+    Widget subOverlay = (_controller != null && isSubtitleOn && parsedSubtitles.isNotEmpty)
+        ? Positioned(
+            bottom: showControls ? 90 : 25, left: 20, right: 20,
+            child: ValueListenableBuilder(
+              valueListenable: _controller!,
+              builder: (context, VideoPlayerValue val, child) {
+                final ms = val.position.inMilliseconds;
+                String txt = "";
+                for (var s in parsedSubtitles) { if (ms >= s['start'] && ms <= s['end']) { txt = s['text']; break; } }
+                if (txt.isEmpty) return const SizedBox.shrink();
+                return Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)), child: Text(txt, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 14))));
+              },
+            ),
+          )
         : const SizedBox.shrink();
 
     Widget videoWidget = Center(child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!)) : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)));
