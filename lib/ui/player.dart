@@ -4,7 +4,6 @@ import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'api_service.dart';
-import 'widgets.dart';
 import '../database/database_helper.dart';
 
 class PlayerPage extends StatefulWidget {
@@ -30,13 +29,39 @@ class _PlayerPageState extends State<PlayerPage> {
   Timer? _hideTimer;
   String currentQuality = "Auto";
   List qualities = [];
-  bool isFullMode = false; // Mode perbesar (episode list hilang)
+  bool isFullMode = false;
+  bool isFavorite = false;
+  double? videoAspectRatio;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+    _checkFavorite();
+  }
+
+  Future<void> _checkFavorite() async {
+    isFavorite = await DatabaseHelper().isFavorite(widget.id);
+    setState(() {});
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (isFavorite) {
+      await DatabaseHelper().removeFromFavorites(widget.id);
+    } else {
+      await DatabaseHelper().addToFavorites({
+        'drama_id': widget.id,
+        'drama_title': widget.title,
+        'drama_poster': dramaData?['cover'],
+        'total_episodes': dramaData?['total_episodes'] ?? totalEpisodes,
+        'platform': widget.source,
+        'added_at': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+    setState(() => isFavorite = !isFavorite);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(isFavorite ? "Ditambahkan ke favorit" : "Dihapus dari favorit"), duration: const Duration(seconds: 1)),
+    );
   }
 
   Future<void> _loadData() async {
@@ -99,6 +124,7 @@ class _PlayerPageState extends State<PlayerPage> {
             setState(() {
               isLoading = false;
               _duration = _controller!.value.duration.inSeconds.toDouble();
+              videoAspectRatio = _controller!.value.aspectRatio;
             });
             _controller!.play();
             isPlaying = true;
@@ -224,213 +250,152 @@ class _PlayerPageState extends State<PlayerPage> {
     return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
+  bool _isPotrait() {
+    return videoAspectRatio != null && videoAspectRatio! < 1;
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
     _hideTimer?.cancel();
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLandscape = videoAspectRatio != null && videoAspectRatio! > 1;
+    
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(
-        children: [
-          // Video Player Area
-          Expanded(
-            flex: isFullMode ? 10 : 6,
-            child: GestureDetector(
-              onTap: _toggleControls,
-              child: Stack(
-                children: [
-                  Center(
-                    child: isLoading
-                        ? const CircularProgressIndicator(color: Color(0xFF06B6D4))
-                        : _controller != null && _controller!.value.isInitialized
-                            ? AspectRatio(
-                                aspectRatio: _controller!.value.aspectRatio,
-                                child: VideoPlayer(_controller!),
-                              )
-                            : const Center(
-                                child: Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
-                              ),
+      body: GestureDetector(
+        onTap: _toggleControls,
+        child: Stack(
+          children: [
+            // Video Player
+            Center(
+              child: isLoading
+                  ? const CircularProgressIndicator(color: Color(0xFF06B6D4))
+                  : _controller != null && _controller!.value.isInitialized
+                      ? (isFullMode
+                          ? (isLandscape
+                              ? AspectRatio(
+                                  aspectRatio: _controller!.value.aspectRatio,
+                                  child: VideoPlayer(_controller!),
+                                )
+                              : Center(
+                                  child: AspectRatio(
+                                    aspectRatio: _controller!.value.aspectRatio,
+                                    child: VideoPlayer(_controller!),
+                                  ),
+                                ))
+                          : AspectRatio(
+                              aspectRatio: _controller!.value.aspectRatio,
+                              child: VideoPlayer(_controller!),
+                            ))
+                      : const Center(
+                          child: Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
+                        ),
+            ),
+            
+            // Top Bar (judul, kualitas, favorit, fullscreen)
+            if (showControls && !isLoading && _controller != null && _controller!.value.isInitialized)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.only(top: 50, left: 16, right: 16, bottom: 16),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(colors: [Colors.black54, Colors.transparent]),
                   ),
-                  if (showControls && !isLoading && _controller != null && _controller!.value.isInitialized)
-                    Container(
-                      color: Colors.black54,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "${widget.title} - Ep $currentEpisode / $totalEpisodes",
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _showQualityDialog,
+                        child: Text(
+                          currentQuality,
+                          style: const TextStyle(color: Color(0xFF06B6D4)),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: Colors.red),
+                        onPressed: _toggleFavorite,
+                      ),
+                      IconButton(
+                        icon: Icon(isFullMode ? Icons.fullscreen_exit : Icons.fullscreen, color: Colors.white),
+                        onPressed: _toggleFullMode,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            
+            // Bottom Controls (play/pause, skip, prev/next)
+            if (showControls && !isLoading && _controller != null && _controller!.value.isInitialized)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(colors: [Colors.black87, Colors.transparent]),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
                         children: [
-                          // Top Bar
-                          Padding(
-                            padding: const EdgeInsets.only(top: 40, left: 16, right: 16),
-                            child: Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                                  onPressed: () => Navigator.pop(context),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    "${widget.title} - Episode $currentEpisode",
-                                    style: const TextStyle(color: Colors.white),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: _showQualityDialog,
-                                  child: Text(
-                                    currentQuality,
-                                    style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: Icon(
-                                    isFullMode ? Icons.fullscreen_exit : Icons.fullscreen,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _toggleFullMode,
-                                ),
-                              ],
+                          Text(_formatDuration(_position), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                          Expanded(
+                            child: Slider(
+                              value: _position,
+                              max: _duration,
+                              activeColor: const Color(0xFF06B6D4),
+                              inactiveColor: Colors.white30,
+                              onChanged: _seekTo,
                             ),
                           ),
-                          // Bottom Controls
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      _formatDuration(_position),
-                                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                                    ),
-                                    Expanded(
-                                      child: Slider(
-                                        value: _position,
-                                        max: _duration,
-                                        activeColor: const Color(0xFF06B6D4),
-                                        inactiveColor: Colors.white30,
-                                        onChanged: _seekTo,
-                                      ),
-                                    ),
-                                    Text(
-                                      _formatDuration(_duration),
-                                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _controlButton(Icons.replay_10, _skipBackward),
-                                    const SizedBox(width: 30),
-                                    _controlButton(
-                                      isPlaying ? Icons.pause : Icons.play_arrow,
-                                      _togglePlay,
-                                      isPlay: true,
-                                    ),
-                                    const SizedBox(width: 30),
-                                    _controlButton(Icons.forward_10, _skipForward),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _controlButton(Icons.skip_previous, _prevEpisode),
-                                    const SizedBox(width: 40),
-                                    _controlButton(Icons.skip_next, _nextEpisode),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
+                          Text(_formatDuration(_duration), style: const TextStyle(color: Colors.white, fontSize: 12)),
                         ],
                       ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          // Episode List (hanya muncul jika tidak dalam mode full)
-          if (!isFullMode)
-            Container(
-              height: 120,
-              color: const Color(0xFF0D1117),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "DAFTAR EPISODE",
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
-                        Text(
-                          "$totalEpisodes Episode",
-                          style: const TextStyle(color: Colors.white54, fontSize: 10),
-                        ),
-                      ],
-                    ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _controlButton(Icons.replay_10, _skipBackward),
+                          const SizedBox(width: 30),
+                          _controlButton(isPlaying ? Icons.pause : Icons.play_arrow, _togglePlay, isPlay: true),
+                          const SizedBox(width: 30),
+                          _controlButton(Icons.forward_10, _skipForward),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _controlButton(Icons.skip_previous, _prevEpisode),
+                          const SizedBox(width: 40),
+                          _controlButton(Icons.skip_next, _nextEpisode),
+                        ],
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      itemCount: episodes.length,
-                      itemBuilder: (context, index) {
-                        final episode = episodes[index];
-                        final episodeNum = episode['index'] ?? index + 1;
-                        final isCurrent = episodeNum == currentEpisode;
-                        return GestureDetector(
-                          onTap: () => _loadVideo(episodeNum),
-                          child: Container(
-                            width: 60,
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: isCurrent ? const Color(0xFF06B6D4) : const Color(0xFF1F2937),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isCurrent ? const Color(0xFF06B6D4) : Colors.white12,
-                                width: 0.5,
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.play_circle_outline,
-                                  color: isCurrent ? Colors.white : const Color(0xFF06B6D4),
-                                  size: 24,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "$episodeNum",
-                                  style: TextStyle(
-                                    color: isCurrent ? Colors.white : Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
