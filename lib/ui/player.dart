@@ -54,9 +54,26 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _loadVideo(int epNum, {Duration? startPos}) async {
-    setState(() { isLoading = true; currentEpisode = epNum; parsedSubtitles.clear(); });
-    await DatabaseHelper().addToHistory({'drama_id': widget.id, 'drama_title': widget.title, 'drama_poster': dramaData?['cover'], 'episode_id': epNum.toString(), 'episode_number': epNum, 'position_seconds': startPos?.inSeconds ?? 0, 'duration_seconds': 0, 'last_watched': DateTime.now().millisecondsSinceEpoch, 'platform': widget.source});
+    setState(() { 
+      isLoading = true; 
+      currentEpisode = epNum; 
+      parsedSubtitles.clear(); 
+    });
+    
+    await DatabaseHelper().addToHistory({
+      'drama_id': widget.id, 
+      'drama_title': widget.title, 
+      'drama_poster': dramaData?['cover'], 
+      'episode_id': epNum.toString(), 
+      'episode_number': epNum, 
+      'position_seconds': startPos?.inSeconds ?? 0, 
+      'duration_seconds': 0, 
+      'last_watched': DateTime.now().millisecondsSinceEpoch, 
+      'platform': widget.source
+    });
+    
     final res = await ApiService.get("/api/v2/video?category_p=${widget.source}&id=${widget.id}&chapterId=$epNum&lang=id");
+    
     if (res != null && res['success'] == true && res['data'] != null) {
       final videoData = res['data'];
       qualities = videoData['streams'] ?? []; 
@@ -64,23 +81,89 @@ class _PlayerPageState extends State<PlayerPage> {
       subtitles = videoData['subtitles'] ?? [];
       
       String url = '';
+      
+      // Validasi URL dengan fallback
       if (qualities.isNotEmpty) {
-        for (var q in qualities) { if (q['quality'].toString().toLowerCase() == currentQuality.toLowerCase()) { url = q['url'] ?? ''; break; } }
-        if (url.isEmpty) url = qualities[0]['url'] ?? '';
+        // Cari quality yang sesuai dengan preferensi
+        for (var q in qualities) { 
+          String qQuality = q['quality']?.toString() ?? '';
+          String qUrl = q['url']?.toString() ?? '';
+          if (qQuality.toLowerCase() == currentQuality.toLowerCase() && qUrl.isNotEmpty) { 
+            url = qUrl; 
+            break; 
+          } 
+        }
+        
+        // Fallback: ambil quality pertama yang valid
+        if (url.isEmpty) {
+          for (var q in qualities) {
+            String qUrl = q['url']?.toString() ?? '';
+            if (qUrl.isNotEmpty) {
+              url = qUrl;
+              currentQuality = q['quality']?.toString() ?? "Auto";
+              break;
+            }
+          }
+        }
       }
+      
+      // Jika tetap tidak ada URL
+      if (url.isEmpty) {
+        if (mounted) setState(() => isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Tidak ada URL video yang valid')),
+          );
+        }
+        return;
+      }
+      
+      // Load video
       if (url.isNotEmpty) {
         _controller?.dispose();
-        _controller = VideoPlayerController.networkUrl(Uri.parse(url))..initialize().then((_) {
-          setState(() { isLoading = false; _duration = _controller!.value.duration.inSeconds.toDouble(); videoAspectRatio = _controller!.value.aspectRatio; });
-          if (startPos != null) _controller!.seekTo(startPos);
-          _controller!.play(); _startHideTimer(); _initDefaultSubtitle();
-        });
-        _controller!.addListener(() {
-          if (mounted) setState(() { _position = _controller!.value.position.inSeconds.toDouble(); _duration = _controller!.value.duration.inSeconds.toDouble(); });
-          if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) _loadVideo(currentEpisode + 1);
-        });
-      } else { setState(() => isLoading = false); }
-    } else { setState(() => isLoading = false); }
+        _controller = VideoPlayerController.networkUrl(Uri.parse(url))
+          ..initialize().then((_) {
+            if (mounted) {
+              setState(() { 
+                isLoading = false; 
+                _duration = _controller!.value.duration.inSeconds.toDouble(); 
+                videoAspectRatio = _controller!.value.aspectRatio; 
+              });
+            }
+            if (startPos != null) _controller!.seekTo(startPos);
+            _controller!.play(); 
+            _startHideTimer(); 
+            _initDefaultSubtitle();
+          })
+          ..addListener(() {
+            if (mounted) {
+              setState(() { 
+                _position = _controller!.value.position.inSeconds.toDouble(); 
+                _duration = _controller!.value.duration.inSeconds.toDouble(); 
+              });
+            }
+            
+            // Autoplay dengan batas episode
+            if (_controller!.value.position >= _controller!.value.duration && 
+                _controller!.value.duration != Duration.zero) {
+              if (currentEpisode < totalEpisodes) {
+                _loadVideo(currentEpisode + 1);
+              } else {
+                // Episode terakhir, stop autoplay
+                _controller!.pause();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('🏁 Tamat! Anda telah menyelesaikan semua episode')),
+                  );
+                }
+              }
+            }
+          })
+          ..setVolume(1.0);
+      }
+    } else {
+      if (mounted) setState(() => isLoading = false);
+    }
   }
 
   void _initDefaultSubtitle() {
@@ -101,7 +184,6 @@ class _PlayerPageState extends State<PlayerPage> {
     } catch (_) {}
   }
 
-  // Core internal parser adaptif (Mendukung format jam 00:00:00 maupun format langsung menit 00:00)
   void _parseWebVTT(String data) {
     final lines = data.split('\n');
     List<Map<String, dynamic>> temp = [];
@@ -124,7 +206,7 @@ class _PlayerPageState extends State<PlayerPage> {
         }
       }
     }
-    setState(() => parsedSubtitles = temp);
+    if (mounted) setState(() => parsedSubtitles = temp);
   }
 
   int _parseTimeToMs(String timeStr) {
@@ -132,10 +214,8 @@ class _PlayerPageState extends State<PlayerPage> {
       final parts = timeStr.split(':');
       double seconds = 0;
       if (parts.length == 3) {
-        // Format jam -> 01:23:45.678
         seconds = (int.parse(parts[0]) * 3600) + (int.parse(parts[1]) * 60) + double.parse(parts[2]);
       } else if (parts.length == 2) {
-        // Format menit langsung -> 23:45.678
         seconds = (int.parse(parts[0]) * 60) + double.parse(parts[1]);
       }
       return (seconds * 1000).toInt();
@@ -167,37 +247,147 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _showMainSettingsDialog() {
-    showDialog(context: context, builder: (c) => AlertDialog(
-      backgroundColor: Colors.white, title: const Text("Pengaturan", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        _itemRow("Kualitas Video", currentQuality, () => _showQualitySelection(true)),
-        _itemRow("Audio Track", currentAudio, () {}),
-        _itemRow("Subtitle", isSubtitleOn ? currentSubtitle : "Mati", _showSubtitleSelection),
-      ]),
-    ));
+    showDialog(
+      context: context, 
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white, 
+        title: const Text("Pengaturan", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min, 
+          children: [
+            _itemRow("Kualitas Video", currentQuality, () => _showQualitySelection(true)),
+            _itemRow("Audio Track", currentAudio, _showAudioSelection),
+            _itemRow("Subtitle", isSubtitleOn ? currentSubtitle : "Mati", _showSubtitleSelection),
+          ]
+        ),
+      )
+    );
   }
 
   Widget _itemRow(String t, String tr, VoidCallback click) {
-    return ListTile(contentPadding: EdgeInsets.zero, title: Text(t, style: const TextStyle(color: Colors.black87, fontSize: 13)), trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text(tr, style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 12)), const Icon(Icons.chevron_right, color: Colors.black38, size: 16)]), onTap: click);
+    return ListTile(
+      contentPadding: EdgeInsets.zero, 
+      title: Text(t, style: const TextStyle(color: Colors.black87, fontSize: 13)), 
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min, 
+        children: [
+          Text(tr, style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 12)), 
+          const Icon(Icons.chevron_right, color: Colors.black38, size: 16)
+        ]
+      ), 
+      onTap: click
+    );
   }
 
   void _showQualitySelection(bool closeP) {
-    if (closeP) Navigator.pop(context); if (qualities.isEmpty) return;
-    showDialog(context: context, builder: (c) => AlertDialog(backgroundColor: Colors.white, title: const Text("Pilih Kualitas", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), content: Column(mainAxisSize: MainAxisSize.min, children: qualities.map((q) {
-      final qText = q['quality']?.toString() ?? '';
-      return ListTile(title: Text(qText, style: const TextStyle(color: Colors.black87)), onTap: () { setState(() => currentQuality = qText); Navigator.pop(c); _loadVideo(currentEpisode, startPos: _controller?.value.position); });
-    }).toList())));
+    if (closeP && mounted) Navigator.pop(context); 
+    if (qualities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada pilihan kualitas')),
+      );
+      return;
+    }
+    
+    showDialog(
+      context: context, 
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white, 
+        title: const Text("Pilih Kualitas", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
+        content: Column(
+          mainAxisSize: MainAxisSize.min, 
+          children: qualities.map((q) {
+            final qText = q['quality']?.toString() ?? '';
+            final isSelected = qText.toLowerCase() == currentQuality.toLowerCase();
+            return ListTile(
+              leading: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF06B6D4), size: 20) : null,
+              title: Text(qText, style: TextStyle(color: isSelected ? const Color(0xFF06B6D4) : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)), 
+              onTap: () async { 
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('pref_quality', qText);
+                if (mounted) {
+                  setState(() => currentQuality = qText); 
+                  if (c.mounted) Navigator.pop(c);
+                  _loadVideo(currentEpisode, startPos: _controller?.value.position);
+                }
+              }
+            );
+          }).toList()
+        ),
+      )
+    );
   }
 
   void _showSubtitleSelection() {
-    Navigator.pop(context);
-    showDialog(context: context, builder: (c) => AlertDialog(backgroundColor: Colors.white, title: const Text("Subtitle", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), content: Column(mainAxisSize: MainAxisSize.min, children: [
-      ListTile(title: const Text("Mati (OFF)", style: TextStyle(color: Colors.black87)), onTap: () { setState(() => isSubtitleOn = false); Navigator.pop(c); }),
-      ...subtitles.map((s) {
-        final subLang = s['language']?.toString() ?? 'Unknown';
-        return ListTile(title: Text(subLang, style: const TextStyle(color: Colors.black87)), onTap: () { setState(() { currentSubtitle = subLang; isSubtitleOn = true; }); Navigator.pop(c); _fetchSubtitleFile(s['url']); });
-      }),
-    ])));
+    if (mounted) Navigator.pop(context);
+    showDialog(
+      context: context, 
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white, 
+        title: const Text("Subtitle", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
+        content: Column(
+          mainAxisSize: MainAxisSize.min, 
+          children: [
+            ListTile(
+              leading: !isSubtitleOn ? const Icon(Icons.check_circle, color: Color(0xFF06B6D4), size: 20) : null,
+              title: const Text("Mati (OFF)", style: TextStyle(color: Colors.black87)), 
+              onTap: () { 
+                if (mounted) setState(() => isSubtitleOn = false); 
+                if (c.mounted) Navigator.pop(c);
+              }
+            ),
+            ...subtitles.map((s) {
+              final subLang = s['language']?.toString() ?? 'Unknown';
+              final isSelected = isSubtitleOn && subLang == currentSubtitle;
+              return ListTile(
+                leading: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF06B6D4), size: 20) : null,
+                title: Text(subLang, style: TextStyle(color: isSelected ? const Color(0xFF06B6D4) : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)), 
+                onTap: () { 
+                  if (mounted) setState(() { currentSubtitle = subLang; isSubtitleOn = true; }); 
+                  if (c.mounted) Navigator.pop(c);
+                  _fetchSubtitleFile(s['url']);
+                }
+              );
+            }),
+          ]
+        ),
+      )
+    );
+  }
+
+  void _showAudioSelection() {
+    if (mounted) Navigator.pop(context);
+    if (audioTracks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada pilihan audio')),
+      );
+      return;
+    }
+    
+    showDialog(
+      context: context, 
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white, 
+        title: const Text("Pilih Audio", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
+        content: Column(
+          mainAxisSize: MainAxisSize.min, 
+          children: audioTracks.map((a) {
+            final audioLang = a['language']?.toString() ?? 'Unknown';
+            final isSelected = audioLang == currentAudio;
+            return ListTile(
+              leading: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF06B6D4), size: 20) : null,
+              title: Text(audioLang, style: TextStyle(color: isSelected ? const Color(0xFF06B6D4) : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)), 
+              onTap: () async {
+                if (mounted) {
+                  setState(() => currentAudio = audioLang);
+                  if (c.mounted) Navigator.pop(c);
+                  _loadVideo(currentEpisode, startPos: _controller?.value.position);
+                }
+              },
+            );
+          }).toList()
+        ),
+      )
+    );
   }
 
   String _formatDuration(double seconds) {
