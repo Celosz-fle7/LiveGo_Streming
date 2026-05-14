@@ -38,7 +38,6 @@ class _TVHomePageState extends State<TVHomePage> {
     }
     setState(() { 
       platforms = active; 
-      // FIXED: Mengambil nilai teks indeks ke-0 dari List active, bukan map key langsung
       if (active.isNotEmpty) selS = active[0].toLowerCase(); 
     });
     if (active.isNotEmpty) fetch();
@@ -50,7 +49,7 @@ class _TVHomePageState extends State<TVHomePage> {
     
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id", forceRefresh: forceRefresh);
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
-      setState(() => banner = bRes['data']);
+      setState(() => banner = bRes['data'][0]);
     } else {
       setState(() => banner = null);
     }
@@ -104,7 +103,8 @@ class _TVHomePageState extends State<TVHomePage> {
             child: Container(
               width: 240, height: double.infinity,
               padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(color: Color(0xFF0F1522), border: Border(right: BorderSide(color: Colors.white05, width: 0.5))),
+              // FIXED: Mengganti Colors.white05 yang typo menjadi warna resmi Colors.white12 bawaan Flutter
+              decoration: const BoxDecoration(color: Color(0xFF0F1522), border: Border(right: BorderSide(color: Colors.white12, width: 0.5))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -153,7 +153,8 @@ class _TVHomePageState extends State<TVHomePage> {
                     child: Container(
                       height: 200, width: double.infinity,
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: const Color(0xFF0F1522), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white05, width: 0.5)),
+                      // FIXED: Mengganti Colors.white05 yang typo menjadi warna resmi Colors.white12 bawaan Flutter
+                      decoration: BoxDecoration(color: const Color(0xFF0F1522), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white12, width: 0.5)),
                       child: Row(children: [
                         Expanded(
                           flex: 3,
