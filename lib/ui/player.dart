@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_subtitle/flutter_subtitle.dart' as sub;
 import 'dart:async';
+import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import '../database/database_helper.dart';
 
@@ -17,6 +19,7 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   VideoPlayerController? _controller;
+  sub.SubtitleController? _subtitleController;
   List episodes = [], qualities = [], audioTracks = [], subtitles = [];
   Map? dramaData;
   bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, isFullMode = false, _showEpisodeSidebar = false;
@@ -28,7 +31,10 @@ class _PlayerPageState extends State<PlayerPage> {
   bool isAutoNext = true;
   double currentSpeed = 1.0;
   String currentAudio = "Default";
-  String currentSubtitle = "None";
+  
+  // Status Kontrol Subtitle Baru
+  String currentSubtitle = "Mati";
+  bool isSubtitleOn = false;
   double? videoAspectRatio;
 
   @override
@@ -104,6 +110,9 @@ class _PlayerPageState extends State<PlayerPage> {
             if (startPosition != null) _controller!.seekTo(startPosition);
             _controller!.setPlaybackSpeed(currentSpeed);
             _controller!.play(); isPlaying = true; _startHideTimer();
+            
+            // LOGIKA PINTAR: Otomatis konfigurasi Subtitle default setelah video siap putar
+            _initDefaultSubtitle();
           });
         _controller!.addListener(() {
           if (mounted) setState(() { _position = _controller!.value.position.inSeconds.toDouble(); _duration = _controller!.value.duration.inSeconds.toDouble(); });
@@ -114,6 +123,47 @@ class _PlayerPageState extends State<PlayerPage> {
         final prefs = await SharedPreferences.getInstance(); prefs.setInt('last_ep_${widget.id}', episodeNum);
       } else { setState(() => isLoading = false); }
     } else { setState(() => isLoading = false); }
+  }
+
+  // ATURAN ATURAN: Cek data bahasa Indo dari API. Jika suara Indo -> Subtitle OFF. Jika suara Asing -> Subtitle ON.
+  void _initDefaultSubtitle() {
+    if (subtitles.isEmpty) return;
+    
+    Map? indoSub;
+    for (var s in subtitles) {
+      if (s['language'] == 'id-ID' || s['language'].toString().toLowerCase().contains('id')) {
+        indoSub = s;
+        break;
+      }
+    }
+
+    if (indoSub != null) {
+      if (widget.title.toLowerCase().contains('sulih suara') || currentAudio.toLowerCase().contains('indo')) {
+        // Kasus 1: Suara sudah Indonesia -> Set database ke bahasa Indo tapi status OFF (Mati)
+        setState(() { currentSubtitle = "Indonesia"; isSubtitleOn = false; });
+        _fetchSubtitleFile(indoSub['url']);
+      } else {
+        // Kasus 2: Suara Asing -> Otomatis set bahasa Indo dan status ON (Menyala)
+        setState(() { currentSubtitle = "Indonesia"; isSubtitleOn = true; });
+        _fetchSubtitleFile(indoSub['url']);
+      }
+    }
+  }
+
+  // Mengunduh berkas teks WebVTT mentah secara asinkron dari internet
+  Future<void> _fetchSubtitleFile(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        setState(() {
+          _subtitleController = sub.SubtitleController(
+            provider: sub.SubtitleProvider.fromString(response.body),
+          );
+        });
+      }
+    } catch (_) {
+      setState(() => _subtitleController = null);
+    }
   }
 
   void _startHideTimer() { 
@@ -159,7 +209,7 @@ class _PlayerPageState extends State<PlayerPage> {
             _buildSettingsItem("Auto Next", isAutoNext ? "Aktif" : "Mati", _toggleAutoNextSetting),
             _buildSettingsItem("Kecepatan Pemutaran", "${currentSpeed}x", _showSpeedSelection),
             _buildSettingsItem("Audio Track (Dubbing)", currentAudio, _showAudioSelection),
-            _buildSettingsItem("Pengaturan Subtitle", currentSubtitle, _showSubtitleSelection),
+            _buildSettingsItem("Pengaturan Subtitle", isSubtitleOn ? currentSubtitle : "Mati", _showSubtitleSelection),
           ],
         ),
       ),
@@ -267,9 +317,9 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
+  // SUB-DIALOG 5: MENU ON/OFF DAN PILIH BAHASA SUBTITLE MAP DARI API
   void _showSubtitleSelection() {
     Navigator.pop(context);
-    if (subtitles.isEmpty) return;
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
@@ -278,19 +328,30 @@ class _PlayerPageState extends State<PlayerPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Opsi 1: Tombol Matikan Subtitle (OFF)
             ListTile(
-              title: const Text("Nonaktifkan Subtitle", style: TextStyle(color: Colors.black87)),
-              trailing: currentSubtitle == "None" ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
-              onTap: () { setState(() => currentSubtitle = "None"); Navigator.pop(c); },
+              title: const Text("Matikan Subtitle (OFF)", style: TextStyle(color: Colors.black87)),
+              trailing: !isSubtitleOn ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
+              onTap: () { setState(() { isSubtitleOn = false; }); Navigator.pop(c); },
             ),
-            ...subtitles.map((s) {
-              final subLang = s['language'] ?? 'English';
-              return ListTile(
-                title: Text(subLang, style: const TextStyle(color: Colors.black87)),
-                trailing: currentSubtitle == subLang ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
-                onTap: () { setState(() => currentSubtitle = subLang); Navigator.pop(c); },
-              );
-            }),
+            const Divider(color: Colors.black12),
+            // Opsi 2: Daftar Bahasa Dinamis (ON) dari Array Json Subtitles API
+            if (subtitles.isEmpty) 
+              const Padding(padding: EdgeInsets.all(12), child: Text("Tidak ada file teks", style: TextStyle(color: Colors.black38, fontSize: 12)))
+            else 
+              ...subtitles.map((s) {
+                final subLang = s['language'] == 'id-ID' ? 'Indonesia' : (s['language'] ?? 'English');
+                final isSelectedLang = isSubtitleOn && currentSubtitle == subLang;
+                return ListTile(
+                  title: Text(subLang, style: const TextStyle(color: Colors.black87)),
+                  trailing: isSelectedLang ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
+                  onTap: () {
+                    setState(() { currentSubtitle = subLang; isSubtitleOn = true; });
+                    Navigator.pop(c);
+                    _fetchSubtitleFile(s['url']);
+                  },
+                );
+              }),
           ],
         ),
       ),
@@ -304,6 +365,27 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    // RENDERER CORE: Merender teks Subtitle di atas video secara sinkron menggunakan milidetik durasi berjalan
+    Widget subOverlay = (_controller != null && _subtitleController != null && isSubtitleOn)
+        ? Positioned(
+            bottom: showControls ? 90 : 25, left: 20, right: 20,
+            child: ValueListenableBuilder(
+              valueListenable: _controller!,
+              builder: (context, VideoPlayerValue value, child) {
+                return sub.SubtitleView(
+                  controller: _subtitleController,
+                  videoPosition: value.position,
+                  subtitleStyle: const sub.SubtitleStyle(
+                    fontSize: 15,
+                    textColor: Colors.white,
+                    backgroundColor: Colors.black54, // Efek background transparan hitam tipis ala teks netflix
+                  ),
+                );
+              },
+            ),
+          )
+        : const SizedBox.shrink();
+
     Widget videoWidget = Center(
       child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
           ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
@@ -361,7 +443,6 @@ class _PlayerPageState extends State<PlayerPage> {
                   IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 20), onPressed: _nextEpisode),
                 ]),
                 Row(children: [
-                  // FIXED: Mengubah aksi TextButton bar bawah ini dari _showMainSettingsDialog menjadi _showQualitySelection langsung!
                   TextButton(
                     onPressed: () => _showQualitySelection(closeParent: false),
                     child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold)),
@@ -377,7 +458,7 @@ class _PlayerPageState extends State<PlayerPage> {
     ]);
 
     if (isFullMode) {
-      return Scaffold(backgroundColor: Colors.black, body: Stack(children: [videoWidget, Positioned.fill(child: gestureOverlay)]));
+      return Scaffold(backgroundColor: Colors.black, body: Stack(children: [videoWidget, subOverlay, Positioned.fill(child: gestureOverlay)]));
     }
 
     return Scaffold(
@@ -387,7 +468,7 @@ class _PlayerPageState extends State<PlayerPage> {
           Container(
             height: 340,
             color: Colors.black,
-            child: Stack(children: [videoWidget, Positioned.fill(child: gestureOverlay)]),
+            child: Stack(children: [videoWidget, subOverlay, Positioned.fill(child: gestureOverlay)]),
           ),
           Expanded(
             child: SingleChildScrollView(
