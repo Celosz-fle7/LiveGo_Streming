@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'widgets.dart';
+import '../widgets/tv_button.dart';
 import 'settings/source_manager.dart';
 import '../database/database_helper.dart';
 
@@ -57,18 +57,6 @@ class _AccountPageState extends State<AccountPage> {
     final dir = await getTemporaryDirectory();
     if (dir.existsSync()) { dir.deleteSync(recursive: true); }
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cache Berhasil Dibersihkan")));
-  }
-
-  Future<void> _clearHistory() async {
-    await DatabaseHelper().clearHistory();
-    _loadHistory();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Riwayat dibersihkan")));
-  }
-
-  Future<void> _clearFavorites() async {
-    await DatabaseHelper().clearFavorites();
-    _loadFavorites();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Favorit dibersihkan")));
   }
 
   void _showHistoryDialog() {
@@ -160,6 +148,9 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   @override Widget build(BuildContext context) {
+    bool isTV = MediaQuery.of(context).size.width > 900;
+    final focusColor = isTV ? const Color(0xFF0D9488) : const Color(0xFF06B6D4); // Hijau gelap untuk TV
+    
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: ListView(padding: const EdgeInsets.all(15), children: [
@@ -210,24 +201,24 @@ class _AccountPageState extends State<AccountPage> {
         
         // KOLEKSI CEPAT
         _sectionCard("📁 KOLEKSI CEPAT", [
-          _menuItem(Icons.history, "Riwayat", "${_history.length} item", _showHistoryDialog),
-          _menuItem(Icons.favorite, "Favorit", "${_favorites.length} drama", _showFavoritesDialog),
-        ]),
+          _menuItem(Icons.history, "Riwayat", "${_history.length} item", _showHistoryDialog, focusColor),
+          _menuItem(Icons.favorite, "Favorit", "${_favorites.length} drama", _showFavoritesDialog, focusColor),
+        ], focusColor),
         
         const SizedBox(height: 16),
         
         // PENGATURAN
         _sectionCard("⚙️ PENGATURAN", [
-          _settingItem(Icons.display_settings, "Tampilan & Navigasi", nav, _showNav),
-          _switchItem(Icons.image, "Background Poster", bgPoster, (v){ setState(()=>bgPoster=v); _save('bg',v); }),
-          _switchItem(Icons.cached, "Cache Playback", useCache, (v){ setState(()=>useCache=v); _save('cache',v); }),
-          _switchItem(Icons.screen_rotation, "Rotasi Manual", rotasi, (v){ setState(()=>rotasi=v); _save('rot',v); }),
-          _settingItem(Icons.security, "Widevine DRM", drm, _showDRM),
+          _settingItem(Icons.display_settings, "Tampilan & Navigasi", nav, _showNav, focusColor),
+          _switchItem(Icons.image, "Background Poster", bgPoster, (v){ setState(()=>bgPoster=v); _save('bg',v); }, focusColor),
+          _switchItem(Icons.cached, "Cache Playback", useCache, (v){ setState(()=>useCache=v); _save('cache',v); }, focusColor),
+          _switchItem(Icons.screen_rotation, "Rotasi Manual", rotasi, (v){ setState(()=>rotasi=v); _save('rot',v); }, focusColor),
+          _settingItem(Icons.security, "Widevine DRM", drm, _showDRM, focusColor),
           _settingItem(Icons.data_usage, "Kelola Sumber Data", "Atur platform aktif", () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SourceManagerPage()));
-          }),
-          _settingItem(Icons.delete_sweep, "Bersihkan Cache", "Hapus data sementara", _clearCache),
-        ]),
+          }, focusColor),
+          _settingItem(Icons.delete_sweep, "Bersihkan Cache", "Hapus data sementara", _clearCache, focusColor),
+        ], focusColor),
         
         const SizedBox(height: 16),
         
@@ -252,7 +243,7 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
-  Widget _sectionCard(String title, List<Widget> children) {
+  Widget _sectionCard(String title, List<Widget> children, Color focusColor) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1F2937),
@@ -275,11 +266,12 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
-  Widget _menuItem(IconData icon, String title, String subtitle, VoidCallback onTap) {
+  Widget _menuItem(IconData icon, String title, String subtitle, VoidCallback onTap, Color focusColor) {
     return TVButton(
       onTap: onTap,
+      focusColor: focusColor,
       child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF06B6D4)),
+        leading: Icon(icon, color: focusColor),
         title: Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.white54)),
         trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.white30),
@@ -287,11 +279,12 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
-  Widget _settingItem(IconData icon, String title, String value, VoidCallback onTap) {
+  Widget _settingItem(IconData icon, String title, String value, VoidCallback onTap, Color focusColor) {
     return TVButton(
       onTap: onTap,
+      focusColor: focusColor,
       child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF06B6D4)),
+        leading: Icon(icon, color: focusColor),
         title: Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
         subtitle: Text(value, style: const TextStyle(fontSize: 11, color: Colors.white54)),
         trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.white30),
@@ -299,15 +292,16 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
-  Widget _switchItem(IconData icon, String title, bool value, Function(bool) onChanged) {
+  Widget _switchItem(IconData icon, String title, bool value, Function(bool) onChanged, Color focusColor) {
     return TVButton(
       onTap: () => onChanged(!value),
+      focusColor: focusColor,
       child: SwitchListTile(
-        secondary: Icon(icon, color: const Color(0xFF06B6D4)),
+        secondary: Icon(icon, color: focusColor),
         title: Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFF06B6D4),
+        activeColor: focusColor,
       ),
     );
   }
