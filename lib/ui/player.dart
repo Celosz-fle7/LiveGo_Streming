@@ -17,19 +17,24 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   VideoPlayerController? _controller;
-  List episodes = [], qualities = [];
+  List episodes = [], qualities = [], audioTracks = [], subtitles = [];
   Map? dramaData;
   bool isLoading = true, isPlaying = true, showControls = true, isFavorite = false, isFullMode = false;
   int currentEpisode = 1, totalEpisodes = 0;
   double _position = 0, _duration = 0;
   Timer? _hideTimer;
+  
+  // Status Pengaturan Player Baru
   String currentQuality = "Auto";
+  bool isAutoNext = true;
+  double currentSpeed = 1.0;
+  String currentAudio = "Default";
+  String currentSubtitle = "None";
   double? videoAspectRatio;
 
   @override
   void initState() {
     super.initState();
-    // DEFAULT: Pastikan HP selalu berdiri tegak (Portrait) saat halaman pertama dibuka
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _loadData();
     _checkFavorite();
@@ -62,6 +67,7 @@ class _PlayerPageState extends State<PlayerPage> {
     final prefs = await SharedPreferences.getInstance();
     currentEpisode = widget.ep != null ? int.parse(widget.ep!) : (prefs.getInt('last_ep_${widget.id}') ?? 1);
     currentQuality = prefs.getString('pref_quality') ?? "Auto";
+    isAutoNext = prefs.getBool('pref_autonext') ?? true;
     
     final res = await ApiService.get("/api/v2/detail?category_p=${widget.source}&id=${widget.id}&lang=id");
     if (res != null && res['data'] != null) {
@@ -70,17 +76,21 @@ class _PlayerPageState extends State<PlayerPage> {
     } else { setState(() => isLoading = false); }
   }
 
-  Future<void> _loadVideo(int episodeNum) async {
+  Future<void> _loadVideo(int episodeNum, {Duration? startPosition}) async {
     setState(() { isLoading = true; currentEpisode = episodeNum; });
     await DatabaseHelper().addToHistory({
       'drama_id': widget.id, 'drama_title': widget.title, 'drama_poster': dramaData?['cover'],
-      'episode_id': episodeNum.toString(), 'episode_number': episodeNum, 'position_seconds': 0,
+      'episode_id': episodeNum.toString(), 'episode_number': episodeNum, 'position_seconds': startPosition?.inSeconds ?? 0,
       'duration_seconds': 0, 'last_watched': DateTime.now().millisecondsSinceEpoch, 'platform': widget.source,
     });
     
     final res = await ApiService.get("/api/v2/video?category_p=${widget.source}&id=${widget.id}&chapterId=$episodeNum&lang=id");
     if (res != null && res['success'] == true && res['data'] != null) {
-      qualities = res['data']['streams'] ?? [];
+      final videoData = res['data'];
+      qualities = videoData['streams'] ?? [];
+      audioTracks = videoData['audios'] ?? [];
+      subtitles = videoData['subtitles'] ?? [];
+      
       String videoUrl = '';
       if (qualities.isNotEmpty) {
         for (var q in qualities) { if (q['quality'] == currentQuality) { videoUrl = q['url']; break; } }
@@ -91,12 +101,20 @@ class _PlayerPageState extends State<PlayerPage> {
         _controller?.dispose();
         _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
           ..initialize().then((_) {
-            setState(() { isLoading = false; _duration = _controller!.value.duration.inSeconds.toDouble(); videoAspectRatio = _controller!.value.aspectRatio; });
+            setState(() { 
+              isLoading = false; 
+              _duration = _controller!.value.duration.inSeconds.toDouble(); 
+              videoAspectRatio = _controller!.value.aspectRatio; 
+            });
+            if (startPosition != null) _controller!.seekTo(startPosition);
+            _controller!.setPlaybackSpeed(currentSpeed);
             _controller!.play(); isPlaying = true; _startHideTimer();
           });
         _controller!.addListener(() {
           if (mounted) setState(() { _position = _controller!.value.position.inSeconds.toDouble(); _duration = _controller!.value.duration.inSeconds.toDouble(); });
-          if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) _nextEpisode();
+          if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) {
+            if (isAutoNext) _nextEpisode();
+          }
         });
         final prefs = await SharedPreferences.getInstance(); prefs.setInt('last_ep_${widget.id}', episodeNum);
       } else { setState(() => isLoading = false); }
@@ -116,42 +134,190 @@ class _PlayerPageState extends State<PlayerPage> {
   void _nextEpisode() { if (currentEpisode < totalEpisodes) _loadVideo(currentEpisode + 1); }
   void _prevEpisode() { if (currentEpisode > 1) _loadVideo(currentEpisode - 1); }
 
-  // LOGIKA CERDAS: Deteksi tipe video saat tombol Fullscreen diklik
   void _toggleFullscreen() {
     setState(() {
       isFullMode = !isFullMode;
       if (isFullMode) {
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-        // Jika aspek rasio video > 1.2 (Artinya video Lanskap/Melebar) -> Putar Layar HP
         if (videoAspectRatio != null && videoAspectRatio! > 1.2) {
           SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
         } else {
-          // Jika video potret/tegak -> Biarkan HP tetap berdiri tegak penuh
           SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
         }
       } else {
-        // Keluar dari Fullscreen -> Balikkan HP ke tegak normal
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
         SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       }
     });
   }
 
-  void _showQualityDialog() {
+  // FUNGSI UTAMA: Memanggil Dialog Menu Pengaturan Utama Persis Seperti Foto Kotak Putih Anda
+  void _showMainSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text("Pengaturan", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSettingsItem("Kualitas Video", currentQuality, _showQualitySelection),
+            _buildSettingsItem("Auto Next", isAutoNext ? "Aktif" : "Mati", _toggleAutoNextSetting),
+            _buildSettingsItem("Kecepatan Pemutaran", "${currentSpeed}x", _showSpeedSelection),
+            _buildSettingsItem("Audio Track (Dubbing)", currentAudio, _showAudioSelection),
+            _buildSettingsItem("Pengaturan Subtitle", currentSubtitle, _showSubtitleSelection),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsItem(String title, String trailingText, VoidCallback onTap) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(title, style: const TextStyle(color: Colors.black87, fontSize: 14)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(trailingText, style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 13)),
+          const Icon(Icons.chevron_right, color: Colors.black38, size: 18),
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
+
+  // SUB-DIALOG 1: Pilihan Kualitas Video dari Data API Stream
+  void _showQualitySelection() {
+    Navigator.pop(context);
     if (qualities.isEmpty) return;
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1F2937),
-        title: const Text("Kualitas Video", style: TextStyle(color: Colors.white)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: qualities.map((q) {
-          final quality = q['quality'] ?? 'Auto';
-          return ListTile(
-            title: Text(quality, style: const TextStyle(color: Colors.white)),
-            trailing: currentQuality == quality ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
-            onTap: () async { currentQuality = quality; final prefs = await SharedPreferences.getInstance(); prefs.setString('pref_quality', currentQuality); Navigator.pop(c); _loadVideo(currentEpisode); },
-          );
-        }).toList()),
+        backgroundColor: Colors.white,
+        title: const Text("Pilih Kualitas", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: qualities.map((q) {
+            final quality = q['quality'] ?? 'Auto';
+            return ListTile(
+              title: Text(quality, style: const TextStyle(color: Colors.black87)),
+              trailing: currentQuality == quality ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
+              onTap: () async {
+                setState(() => currentQuality = quality);
+                final prefs = await SharedPreferences.getInstance();
+                prefs.setString('pref_quality', currentQuality);
+                Navigator.pop(c);
+                // Ganti Kualitas Tanpa Mengulang Video dari Awal Menit (Seamless Switch)
+                final currentPos = _controller?.value.position ?? Duration.zero;
+                _loadVideo(currentEpisode, startPosition: currentPos);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // SUB-LOGiKA 2: Sakelar Auto Next On/Off
+  void _toggleAutoNextSetting() async {
+    Navigator.pop(context);
+    setState(() => isAutoNext = !isAutoNext);
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setBool('pref_autonext', isAutoNext);
+  }
+
+  // SUB-DIALOG 3: Kecepatan Putar Video (Playback Speed)
+  void _showSpeedSelection() {
+    Navigator.pop(context);
+    final speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text("Kecepatan Pemutaran", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: speeds.map((s) {
+            return ListTile(
+              title: Text("${s}x ${s == 1.0 ? '(Normal)' : ''}", style: const TextStyle(color: Colors.black87)),
+              trailing: currentSpeed == s ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
+              onTap: () {
+                setState(() => currentSpeed = s);
+                _controller?.setPlaybackSpeed(s);
+                Navigator.pop(c);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // SUB-DIALOG 4: Jalur Bahasa Suara/Dubbing dari API
+  void _showAudioSelection() {
+    Navigator.pop(context);
+    if (audioTracks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Hanya tersedia 1 jalur audio default"), duration: Duration(seconds: 1)));
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text("Audio Track", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: audioTracks.map((a) {
+            final lang = a['language'] ?? 'Default';
+            return ListTile(
+              title: Text(lang, style: const TextStyle(color: Colors.black87)),
+              trailing: currentAudio == lang ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
+              onTap: () {
+                setState(() => currentAudio = lang);
+                Navigator.pop(c);
+                // Jalankan refresh stream url audio jika url track-nya terpisah dari API
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // SUB-DIALOG 5: Teks Terjemahan / Subtitle dari API
+  void _showSubtitleSelection() {
+    Navigator.pop(context);
+    if (subtitles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Subtitle tidak tersedia pada video ini"), duration: Duration(seconds: 1)));
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text("Pengaturan Subtitle", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text("Nonaktifkan Subtitle", style: TextStyle(color: Colors.black87)),
+              trailing: currentSubtitle == "None" ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
+              onTap: () { setState(() => currentSubtitle = "None"); Navigator.pop(c); },
+            ),
+            ...subtitles.map((s) {
+              final subLang = s['language'] ?? 'English';
+              return ListTile(
+                title: Text(subLang, style: const TextStyle(color: Colors.black87)),
+                trailing: currentSubtitle == subLang ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
+                onTap: () {
+                  setState(() => currentSubtitle = subLang);
+                  Navigator.pop(c);
+                },
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -163,38 +329,20 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Pembungkus Video Utama
     Widget videoWidget = Center(
       child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
           ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
           : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
     );
 
-    // PANEL DETEKSI KETUK CERDAS (Double Tap ala YouTube)
     Widget gestureOverlay = Stack(children: [
       Positioned.fill(
         child: Row(children: [
-          // SISI KIRI: Double tap memundurkan 10 detik
-          Expanded(child: GestureDetector(
-            onTap: _toggleControls,
-            onDoubleTap: _skipBackward,
-            child: Container(color: Colors.transparent),
-          )),
-          // SISI TENGAH: Double tap Play / Pause
-          Expanded(child: GestureDetector(
-            onTap: _toggleControls,
-            onDoubleTap: _togglePlay,
-            child: Container(color: Colors.transparent),
-          )),
-          // SISI KANAN: Double tap mempercepat 10 detik
-          Expanded(child: GestureDetector(
-            onTap: _toggleControls,
-            onDoubleTap: _skipForward,
-            child: Container(color: Colors.transparent),
-          )),
+          Expanded(child: GestureDetector(onTap: _toggleControls, onDoubleTap: _skipBackward, child: Container(color: Colors.transparent))),
+          Expanded(child: GestureDetector(onTap: _toggleControls, onDoubleTap: _togglePlay, child: Container(color: Colors.transparent))),
+          Expanded(child: GestureDetector(onTap: _toggleControls, onDoubleTap: _skipForward, child: Container(color: Colors.transparent))),
         ]),
       ),
-      // Overlay Tombol Kontrol (Muncul/Hilang dalam 5 Detik)
       if (showControls && !isLoading && _controller != null) ...[
         Positioned(
           top: 0, left: 0, right: 0,
@@ -208,7 +356,6 @@ class _PlayerPageState extends State<PlayerPage> {
             ]),
           ),
         ),
-        // Tombol Kontrol Tengah Layar
         Center(
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             IconButton(icon: const Icon(Icons.replay_10, color: Colors.white, size: 30), onPressed: _skipBackward),
@@ -218,7 +365,6 @@ class _PlayerPageState extends State<PlayerPage> {
             IconButton(icon: const Icon(Icons.forward_10, color: Colors.white, size: 30), onPressed: _skipForward),
           ]),
         ),
-        // Toolbar Bawah Video (Garis Waktu & Menu)
         Positioned(
           bottom: 0, left: 0, right: 0,
           child: Container(
@@ -236,8 +382,9 @@ class _PlayerPageState extends State<PlayerPage> {
                   IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 20), onPressed: _nextEpisode),
                 ]),
                 Row(children: [
-                  TextButton(onPressed: _showQualityDialog, child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold))),
-                  IconButton(icon: const Icon(Icons.settings, color: Colors.white, size: 20), onPressed: _showQualityDialog),
+                  TextButton(onPressed: _showMainSettingsDialog, child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold))),
+                  // TOMBOL RODA GIGI (⚙) -> Sekarang memanggil Kotak Dialog Pengaturan Utama Lengkap
+                  IconButton(icon: const Icon(Icons.settings, color: Colors.white, size: 20), onPressed: _showMainSettingsDialog),
                   IconButton(icon: Icon(isFullMode ? Icons.fullscreen_exit : Icons.fullscreen, color: Colors.white, size: 20), onPressed: _toggleFullscreen),
                 ]),
               ]),
@@ -247,23 +394,19 @@ class _PlayerPageState extends State<PlayerPage> {
       ]
     ]);
 
-    // JIKA USER KLIK FULLSCREEN: Render Full Tanpa Layout Detail Bawah
     if (isFullMode) {
       return Scaffold(backgroundColor: Colors.black, body: Stack(children: [videoWidget, Positioned.fill(child: gestureOverlay)]));
     }
 
-    // TAMPILAN NORMAL (POTRET SESUAI GAMBAR ANDA): Video di atas, Detail & Grid Episode di bawah
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: SafeArea(
         child: Column(children: [
-          // 1. Area Pemutar Video Utama (Atas Layar)
           Container(
-            height: 230,
+            height: 340,
             color: Colors.black,
             child: Stack(children: [videoWidget, Positioned.fill(child: gestureOverlay)]),
           ),
-          // 2. Area Detail Cerita & Grid Kotak Episode (Bawah Layar)
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -274,22 +417,35 @@ class _PlayerPageState extends State<PlayerPage> {
                 const SizedBox(height: 8),
                 if (dramaData != null) Text(dramaData!['description'] ?? 'Tidak ada sinopsis.', style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 16),
-                // Tombol Favorit Lebar Khas Gambar Anda
-                GestureDetector(
-                  onTap: _toggleFavorite,
-                  child: Container(
-                    width: double.infinity, height: 48,
-                    decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF06B6D4)]), borderRadius: BorderRadius.circular(24)),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: Colors.white), const SizedBox(width: 8), Text("Favorit", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
+                Row(children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _toggleFavorite,
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF06B6D4)]), borderRadius: BorderRadius.circular(24)),
+                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: Colors.white), const SizedBox(width: 8), const Text("Favorit", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/download'),
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0xFF06B6D4).withOpacity(0.5))),
+                        child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.download, color: Color(0xFF06B6D4)), const SizedBox(width: 8), const Text("Download", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
+                      ),
+                    ),
+                  ),
+                ]),
                 const SizedBox(height: 24),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   const Text("DAFTAR EPISODE", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
                   Text("$totalEpisodes Ep", style: const TextStyle(color: Colors.white38, fontSize: 12)),
                 ]),
                 const SizedBox(height: 12),
-                // Grid Kotak Episode (1 Sampai Selesai) Sesuai Gambar Anda
                 GridView.builder(
                   shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, childAspectRatio: 1.0, crossAxisSpacing: 10, mainAxisSpacing: 10),
@@ -307,7 +463,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         ),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                           Text("EPISODE", style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white38, fontSize: 8, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 20),
                           Text(isCurrent ? "DIPUTAR\n$epNum" : "$epNum", textAlign: TextAlign.center, style: TextStyle(color: isCurrent ? const Color(0xFF06B6D4) : Colors.white, fontSize: isCurrent ? 9 : 12, fontWeight: FontWeight.bold)),
                         ]),
                       ),
