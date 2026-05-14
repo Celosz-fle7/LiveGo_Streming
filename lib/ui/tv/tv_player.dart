@@ -26,7 +26,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   Timer? _hideTimer;
   String currentQuality = "Auto";
   double? videoAspectRatio;
-  bool isStretchMode = false; // Fitur tombol rasio regang khas TV Anda
+  bool isStretchMode = false;
 
   @override
   void initState() { super.initState(); _loadData(); _checkFavorite(); }
@@ -50,9 +50,6 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
       });
     }
     setState(() => isFavorite = !isFavorite);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(isFavorite ? "Ditambahkan ke favorit" : "Dihapus dari favorit"), duration: const Duration(seconds: 1)),
-    );
   }
 
   Future<void> _loadData() async {
@@ -174,14 +171,12 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
         body: GestureDetector(
           onTap: _toggleControls,
           child: Stack(children: [
-            // 1. VIDEO RENDERER (Ditambahkan Fitur Regang Rasio Khas Gambar TV Anda)
             Center(
               child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
                   ? SizedBox.expand(child: FittedBox(fit: isStretchMode ? BoxFit.fill : BoxFit.contain, child: SizedBox(width: _controller!.value.size.width, height: _controller!.value.size.height, child: VideoPlayer(_controller!))))
                   : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
             ),
             
-            // 2. TAMPILAN TEXT ATAS & SINOPSIS SAMA PERSIS SEPERTI GAMBAR 1 TV ANDA
             if (showControls && !isLoading && _controller != null) Positioned(
               top: 0, left: 0, right: 0,
               child: Container(
@@ -190,7 +185,8 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text("${widget.title} - Ep $currentEpisode / $totalEpisodes", style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  if (dramaData != null) Container(maxWidth: 600, child: Text(dramaData!['description'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  // FIX 2: Mengganti maxWidth mentah menggunakan BoxConstraints
+                  if (dramaData != null) Container(constraints: const BoxConstraints(maxWidth: 600), child: Text(dramaData!['description'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   const SizedBox(height: 12),
                   Row(children: [
                     Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(4)), child: const Text("Gratis", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
@@ -201,12 +197,12 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
               ),
             ),
 
-            // 3. BARISAN KAPSUL TOMBOL HORIZONTAL DI BAWAH SAMA PERSIS SEPERTI GAMBAR 1 TV ANDA
             if (showControls && !isLoading && _controller != null) Positioned(
               bottom: 0, left: 0, right: 0,
               child: Container(
                 padding: const EdgeInsets.all(30),
-                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black90, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter)),
+                // FIX 3: Mengganti warna typo Colors.black90 menjadi Colors.black87 resmi Flutter
+                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter)),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Row(children: [
                     Text(_formatDuration(_position), style: const TextStyle(color: Colors.white, fontSize: 12)),
@@ -214,7 +210,6 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                     Text(_formatDuration(_duration), style: const TextStyle(color: Colors.white, fontSize: 12)),
                   ]),
                   const SizedBox(height: 14),
-                  // Kapsul Horizontal Baris Tunggal Sesuai Gambar TV Anda
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                     decoration: BoxDecoration(color: const Color(0xFF1F2937).withOpacity(0.85), borderRadius: BorderRadius.circular(40)),
@@ -223,10 +218,8 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                       TVButton(onTap: _togglePlay, child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: const Color(0xFF06B6D4), size: 28))),
                       TVButton(onTap: _nextEpisode, child: const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.skip_next, color: Colors.white))),
                       const SizedBox(width: 14),
-                      // Ikon Lembar List Episode -> Klik untuk panggil Opsi A Sidebar
                       TVButton(onTap: () => setState(() => _showEpisodeSidebar = true), child: const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.format_list_numbered, color: Colors.white))),
                       TVButton(onTap: _showQualityDialog, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), child: Text(currentQuality, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)))),
-                      // Tombol Regang Rasio TV
                       TVButton(onTap: () => setState(() => isStretchMode = !isStretchMode), child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.aspect_ratio, color: isStretchMode ? const Color(0xFF06B6D4) : Colors.white))),
                       TVButton(onTap: _toggleFavorite, child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: Colors.red))),
                       TVButton(onTap: () {}, child: const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.menu, color: Colors.white70))),
@@ -236,7 +229,6 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
               ),
             ),
 
-            // 4. PANEL SIDEBAR KANAN (Opsi A) KHUSUS TV REMOTE
             if (_showEpisodeSidebar) Positioned(
               right: 0, top: 0, bottom: 0,
               child: FocusScope(
@@ -260,7 +252,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
                               child: TVButton(
-                                autoFocus: isCurrent, 
+                                // FIX 4: Menghapus parameter autoFocus pemicu error
                                 onTap: () { setState(() => _showEpisodeSidebar = false); _loadVideo(epNum); },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),

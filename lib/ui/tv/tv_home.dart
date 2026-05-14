@@ -36,7 +36,7 @@ class _TVHomePageState extends State<TVHomePage> {
     }
     setState(() { 
       platforms = active; 
-      if (active.isNotEmpty) selS = active[0].toLowerCase(); 
+      if (active.isNotEmpty) selS = active.toLowerCase(); 
     });
     if (active.isNotEmpty) fetch();
   }
@@ -45,7 +45,6 @@ class _TVHomePageState extends State<TVHomePage> {
     if (selS.isEmpty) return;
     setState(() => loading = true);
     
-    // FIX 1: Membaca indeks ke-0 dari data Array Banner API agar tidak terjadi crash data tipe
     final bRes = await ApiService.get("/api/v2/banner?category_p=$selS&lang=id", forceRefresh: forceRefresh);
     if (bRes != null && bRes['data'] != null && bRes['data'].isNotEmpty) {
       setState(() => banner = bRes['data'][0]);
@@ -81,7 +80,7 @@ class _TVHomePageState extends State<TVHomePage> {
           return TVButton(
             onTap: () => Navigator.push(c, MaterialPageRoute(builder: (ctx) => TVPlayerPage(id: item['id'].toString(), source: selS, title: item['title'] ?? 'No Title', ep: '1'))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, placeholder: (_, __) => Container(color: Colors.grey[900]), errorWidget: (_, __, ___) => Container(color: Colors.grey[900])))),
+              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, placeholder: (_, __) => Container(color: Colors.grey), errorWidget: (_, __, ___) => Container(color: Colors.grey)))),
               const SizedBox(height: 8),
               Text(item['title'] ?? 'No Title', style: const TextStyle(color: Colors.white, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 4),
@@ -161,7 +160,6 @@ class _TVHomePageState extends State<TVHomePage> {
                           return Focus(
                             onFocusChange: (hasFocus) { if (hasFocus && !_showSidebar) setState(() => _showSidebar = true); },
                             child: TVButton(
-                              autoFocus: index == 0,
                               onTap: () {},
                               child: Container(padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24), child: Row(children: [Icon(item['icon'], color: Colors.white70), if (_showSidebar) ...[const SizedBox(width: 16), Expanded(child: Text(item['label'], style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500), maxLines: 1))]])),
                             ),
