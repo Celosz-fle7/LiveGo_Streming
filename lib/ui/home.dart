@@ -162,7 +162,7 @@ class _HomePageState extends State<HomePage> {
         crossAxisSpacing: 10, 
         mainAxisSpacing: 16
       ),
-      itemCount: list.length > 12 ? 12 : list.length,
+      itemCount: list.length > 32 ? 32 : list.length,
       itemBuilder: (c, i) {
         final item = list[i];
         final isWatched = watchedIds.contains(item['id']?.toString());
@@ -256,7 +256,7 @@ class _HomePageState extends State<HomePage> {
         crossAxisSpacing: 10, 
         mainAxisSpacing: 16
       ),
-      itemCount: list.length > 12 ? 12 : list.length,
+      itemCount: list.length > 32 ? 32 : list.length,
       itemBuilder: (c, i) {
         final item = list[i];
         final isWatched = watchedIds.contains(item['id']?.toString());

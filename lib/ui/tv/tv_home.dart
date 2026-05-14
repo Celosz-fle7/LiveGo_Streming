@@ -98,7 +98,7 @@ class _TVHomePageState extends State<TVHomePage> {
         crossAxisSpacing: 12, 
         mainAxisSpacing: 16
       ),
-      itemCount: list.length > 12 ? 12 : list.length,
+      itemCount: list.length > 30 ? 30 : list.length,
       itemBuilder: (c, i) {
         final item = list[i];
         return GestureDetector(
