@@ -59,6 +59,18 @@ class _AccountPageState extends State<AccountPage> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cache Berhasil Dibersihkan")));
   }
 
+  Future<void> _clearHistory() async {
+    await DatabaseHelper().clearHistory();
+    _loadHistory();
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Riwayat dibersihkan")));
+  }
+
+  Future<void> _clearFavorites() async {
+    await DatabaseHelper().clearFavorites();
+    _loadFavorites();
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Favorit dibersihkan")));
+  }
+
   void _showHistoryDialog() {
     showDialog(
       context: context,
@@ -149,14 +161,13 @@ class _AccountPageState extends State<AccountPage> {
 
   @override Widget build(BuildContext context) {
     bool isTV = MediaQuery.of(context).size.width > 900;
-    final focusColor = isTV ? const Color(0xFF0D9488) : const Color(0xFF06B6D4); // Hijau gelap untuk TV
+    final focusColor = isTV ? const Color(0xFF0D9488) : const Color(0xFF06B6D4);
     
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: ListView(padding: const EdgeInsets.all(15), children: [
         const SizedBox(height: 20),
         
-        // Logo + Header
         Row(
           children: [
             Container(
@@ -171,16 +182,12 @@ class _AccountPageState extends State<AccountPage> {
               ),
             ),
             const SizedBox(width: 12),
-            const Text(
-              "LiveGO",
-              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-            ),
+            const Text("LiveGO", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
           ],
         ),
         
         const SizedBox(height: 20),
         
-        // User Profile Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -199,7 +206,6 @@ class _AccountPageState extends State<AccountPage> {
         
         const SizedBox(height: 20),
         
-        // KOLEKSI CEPAT
         _sectionCard("📁 KOLEKSI CEPAT", [
           _menuItem(Icons.history, "Riwayat", "${_history.length} item", _showHistoryDialog, focusColor),
           _menuItem(Icons.favorite, "Favorit", "${_favorites.length} drama", _showFavoritesDialog, focusColor),
@@ -207,7 +213,6 @@ class _AccountPageState extends State<AccountPage> {
         
         const SizedBox(height: 16),
         
-        // PENGATURAN
         _sectionCard("⚙️ PENGATURAN", [
           _settingItem(Icons.display_settings, "Tampilan & Navigasi", nav, _showNav, focusColor),
           _switchItem(Icons.image, "Background Poster", bgPoster, (v){ setState(()=>bgPoster=v); _save('bg',v); }, focusColor),
@@ -222,7 +227,6 @@ class _AccountPageState extends State<AccountPage> {
         
         const SizedBox(height: 16),
         
-        // VERSI
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -255,10 +259,7 @@ class _AccountPageState extends State<AccountPage> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Text(
-              title,
-              style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
-            ),
+            child: Text(title, style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
           ),
           ...children,
         ],
