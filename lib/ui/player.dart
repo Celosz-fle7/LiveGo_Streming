@@ -47,7 +47,7 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void dispose() {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _controller?.dispose();
     _hideTimer?.cancel();
     super.dispose();
@@ -92,7 +92,6 @@ class _PlayerPageState extends State<PlayerPage> {
     if (res != null && res['success'] == true && res['data'] != null) {
       final videoData = res['data'];
       
-      // FIX UTAMA: Mendeteksi letak array streams baik di dalam objek data maupun di root utama json API Anda
       qualities = videoData['streams'] ?? res['streams'] ?? [];
       audioTracks = videoData['audios'] ?? res['audios'] ?? [];
       subtitles = videoData['subtitles'] ?? res['subtitles'] ?? [];
@@ -414,14 +413,81 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  String _formatDuration(double seconds) {
-    final d = Duration(seconds: seconds.toInt());
-    return '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
-    Widget subOverlay = (isSubtitleOn && _currentSubtitleText.isNotEmpty)
+    // FIX DEKLARASI: Variabel dipindah ke paling atas agar skopenya terbaca utuh di seluruh fungsi build
+    final Widget videoWidget = Center(
+      child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
+          ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
+          : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
+    );
+
+    final Widget gestureOverlay = Stack(children: [
+      Positioned.fill(
+        child: Row(children: [
+          Expanded(child: GestureDetector(onTap: _toggleControls, onDoubleTap: _skipBackward, child: Container(color: Colors.transparent))),
+          Expanded(child: GestureDetector(onTap: _toggleControls, onDoubleTap: _togglePlay, child: Container(color: Colors.transparent))),
+          Expanded(child: GestureDetector(onTap: _toggleControls, onDoubleTap: _skipForward, child: Container(color: Colors.transparent))),
+        ]),
+      ),
+      if (showControls && !isLoading && _controller != null) ...[
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.only(top: 30, left: 16, right: 16, bottom: 16),
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black54, Colors.transparent], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+            child: Row(children: [
+              IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () { if(isFullMode) { _toggleFullscreen(); } else { Navigator.pop(context); } }),
+              const SizedBox(width: 8),
+              Expanded(child: Text("${widget.title} - Ep $currentEpisode", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              TextButton(
+                onPressed: () => _showQualitySelection(closeParent: false),
+                child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold)),
+              ),
+            ]),
+          ),
+        ),
+        Center(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(icon: const Icon(Icons.replay_10, color: Colors.white, size: 30), onPressed: _skipBackward),
+            const SizedBox(width: 40),
+            ElevatedButton(onPressed: _togglePlay, style: ElevatedButton.styleFrom(shape: const CircleBorder(), backgroundColor: const Color(0xFF06B6D4), padding: const EdgeInsets.all(12)), child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 32)),
+            const SizedBox(width: 40),
+            IconButton(icon: const Icon(Icons.forward_10, color: Colors.white, size: 30), onPressed: _skipForward),
+          ]),
+        ),
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                Text(_formatDuration(_position), style: const TextStyle(color: Colors.white, fontSize: 11)),
+                Expanded(child: Slider(value: _position, max: _duration > 0 ? _duration : 1, activeColor: const Color(0xFF06B6D4), inactiveColor: Colors.white24, onChanged: _seekTo)),
+                Text(_formatDuration(_duration), style: const TextStyle(color: Colors.white, fontSize: 11)),
+              ]),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Row(children: [
+                  IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white, size: 20), onPressed: _prevEpisode),
+                  IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 20), onPressed: _nextEpisode),
+                ]),
+                Row(children: [
+                  TextButton(
+                    onPressed: () => _showQualitySelection(closeParent: false),
+                    child: Text(currentQuality, style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                  IconButton(icon: const Icon(Icons.settings, color: Colors.white, size: 20), onPressed: _showMainSettingsDialog),
+                  IconButton(icon: Icon(isFullMode ? Icons.fullscreen_exit : Icons.fullscreen, color: Colors.white, size: 20), onPressed: _toggleFullscreen),
+                ]),
+              ]),
+            ]),
+          ),
+        ),
+      ]
+    ]);
+
+    final Widget subOverlay = (isSubtitleOn && _currentSubtitleText.isNotEmpty)
         ? Positioned(
             bottom: showControls ? 95 : 30, left: 24, right: 24,
             child: Center(
@@ -438,6 +504,10 @@ class _PlayerPageState extends State<PlayerPage> {
           )
         : const SizedBox.shrink();
 
+    if (isFullMode) {
+      return Scaffold(backgroundColor: Colors.black, body: Stack(children: [videoWidget, subOverlay, Positioned.fill(child: gestureOverlay)]));
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: SafeArea(
@@ -445,11 +515,7 @@ class _PlayerPageState extends State<PlayerPage> {
           Container(
             height: 340,
             color: Colors.black,
-            child: Stack(children: [
-              videoWidget, 
-              subOverlay, 
-              Positioned.fill(child: gestureOverlay)
-            ]),
+            child: Stack(children: [videoWidget, subOverlay, Positioned.fill(child: gestureOverlay)]),
           ),
           Expanded(
             child: SingleChildScrollView(
