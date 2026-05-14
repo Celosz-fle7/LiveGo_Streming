@@ -343,7 +343,7 @@ class _PlayerPageState extends State<PlayerPage> {
               onTap: () {
                 setState(() => currentSpeed = s);
                 _controller?.setPlaybackSpeed(s);
-                Navigator.pop(c);
+                Navigator.pop(context);
               },
             );
           }).toList(),
@@ -413,9 +413,14 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
+  // FIX UTAMA: Menulis ulang fungsi format waktu agar menerima nilai double secara universal tanpa merusak type snapshot kernel
+  String _formatDuration(double seconds) {
+    final d = Duration(seconds: seconds.toInt());
+    return '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // FIX DEKLARASI: Variabel dipindah ke paling atas agar skopenya terbaca utuh di seluruh fungsi build
     final Widget videoWidget = Center(
       child: isLoading ? const CircularProgressIndicator(color: Color(0xFF06B6D4)) : _controller != null && _controller!.value.isInitialized
           ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
