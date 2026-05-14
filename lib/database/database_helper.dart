@@ -97,6 +97,13 @@ class DatabaseHelper {
     return result.isNotEmpty ? result.first : null;
   }
 
+  // Ambil daftar ID konten yang sudah ditonton
+  Future<Set<String>> getWatchedContentIds() async {
+    final db = await database;
+    final result = await db.query('history', columns: ['drama_id']);
+    return result.map((e) => e['drama_id'] as String).toSet();
+  }
+
   Future<void> deleteHistoryItem(int id) async {
     final db = await database;
     await db.delete('history', where: 'id = ?', whereArgs: [id]);
@@ -134,17 +141,3 @@ class DatabaseHelper {
     await db.delete('favorites');
   }
 }
-
-  // Ambil daftar ID konten yang sudah ditonton
-  Future<Set<String>> getWatchedContentIds() async {
-    final db = await database;
-    final result = await db.query('history', columns: ['drama_id']);
-    return result.map((e) => e['drama_id'] as String).toSet();
-  }
-
-  // Ambil daftar ID konten yang sudah ditonton
-  Future<Set<String>> getWatchedContentIds() async {
-    final db = await database;
-    final result = await db.query('history', columns: ['drama_id']);
-    return result.map((e) => e['drama_id'] as String).toSet();
-  }
