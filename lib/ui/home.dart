@@ -16,7 +16,6 @@ class _HomePageState extends State<HomePage> {
   List terbaruList = [];
   Map? banner;
   bool loading = true;
-  bool refreshing = false;
   String selS = "";
   String selC = "Dubbing";
   List<String> platforms = [];
@@ -107,6 +106,7 @@ class _HomePageState extends State<HomePage> {
     setState(() => refreshing = false);
   }
 
+  // Grid untuk Dubbing (tetap 4 kolom meski gambar kosong)
   Widget _buildGrid(List list) {
     if (list.isEmpty) {
       return const Padding(
@@ -124,7 +124,7 @@ class _HomePageState extends State<HomePage> {
         crossAxisSpacing: 10, 
         mainAxisSpacing: 16
       ),
-      itemCount: list.length > 20 ? 20 : list.length,
+      itemCount: list.length > 12 ? 12 : list.length,
       itemBuilder: (c, i) {
         final item = list[i];
         return GestureDetector(
@@ -144,36 +144,21 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: item['cover'] ?? '',
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        placeholder: (_, __) => Container(color: Colors.grey[800]),
-                        errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
-                      ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: item['cover'] ?? '',
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    placeholder: (_, __) => Container(
+                      color: Colors.grey[800],
+                      child: const Center(child: Icon(Icons.movie, color: Colors.grey)),
                     ),
-                    // Label "Sulih Suara" di pojok kiri bawah poster
-                    Positioned(
-                      bottom: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          "Sulih Suara",
-                          style: TextStyle(color: Colors.white, fontSize: 8),
-                        ),
-                      ),
+                    errorWidget: (_, __, ___) => Container(
+                      color: Colors.grey[800],
+                      child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
                     ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -185,12 +170,89 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 2),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     "${item['chapters'] ?? 0} Ep",
                     style: const TextStyle(color: Colors.white54, fontSize: 9),
                   ),
+                  const SizedBox(width: 6),
+                  Text(
+                    "${item['views'] ?? 0}",
+                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Grid untuk Populer dan Terbaru
+  Widget _buildGridPoster(List list) {
+    if (list.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: Text("Tidak ada konten", style: TextStyle(color: Colors.white54))),
+      );
+    }
+    return GridView.builder(
+      shrinkWrap: true, 
+      physics: const NeverScrollableScrollPhysics(), 
+      padding: const EdgeInsets.all(12), 
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4, 
+        childAspectRatio: 0.65, 
+        crossAxisSpacing: 10, 
+        mainAxisSpacing: 16
+      ),
+      itemCount: list.length > 12 ? 12 : list.length,
+      itemBuilder: (c, i) {
+        final item = list[i];
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (ctx) => DetailScreen(
+                  id: item['id'].toString(),
+                  source: selS,
+                  title: item['title'] ?? 'No Title',
+                ),
+              ),
+            );
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: item['cover'] ?? '',
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    placeholder: (_, __) => Container(color: Colors.grey[800]),
+                    errorWidget: (_, __, ___) => Container(color: Colors.grey[800]),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item['title'] ?? 'No Title',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Text(
+                    "${item['chapters'] ?? 0} Ep",
+                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                  ),
+                  const SizedBox(width: 6),
                   Text(
                     "${item['views'] ?? 0}",
                     style: const TextStyle(color: Colors.white54, fontSize: 9),
@@ -206,17 +268,14 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    bool isT = MediaQuery.of(context).size.width > 900;
+    
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
         title: const Text("LiveGO", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0D1117),
         elevation: 0,
-        actions: [
-          IconButton(icon: const Icon(Icons.search, color: Colors.white), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.favorite_border, color: Colors.white), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.history, color: Colors.white), onPressed: () {}),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: _onRefresh,
@@ -241,10 +300,15 @@ class _HomePageState extends State<HomePage> {
               : SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: Column(children: [
+                    // Banner
                     if (banner != null)
                       Container(
-                        margin: const EdgeInsets.all(15), height: 180,
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)]),
+                        margin: const EdgeInsets.all(15), 
+                        height: 200,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)],
+                        ),
                         child: GestureDetector(
                           onTap: () {
                             Navigator.push(
@@ -259,20 +323,29 @@ class _HomePageState extends State<HomePage> {
                             );
                           },
                           child: Stack(children: [
-                            ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(banner!['cover'], fit: BoxFit.cover, width: double.infinity)),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Image.network(banner!['cover'], fit: BoxFit.cover, width: double.infinity),
+                            ),
                             Container(
-                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(begin: Alignment.bottomCenter, colors: [Colors.black, Colors.transparent])),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: const LinearGradient(begin: Alignment.bottomCenter, colors: [Colors.black, Colors.transparent]),
+                              ),
                               padding: const EdgeInsets.all(15),
                               alignment: Alignment.bottomLeft,
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                                const SizedBox(height: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(color: const Color(0xFF06B6D4), borderRadius: BorderRadius.circular(15)),
-                                  child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)),
-                                ),
-                              ]),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(banner!['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
+                                  const SizedBox(height: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    decoration: BoxDecoration(color: const Color(0xFF06B6D4), borderRadius: BorderRadius.circular(15)),
+                                    child: const Text("Tonton Sekarang", style: TextStyle(color: Colors.white, fontSize: 10)),
+                                  ),
+                                ],
+                              ),
                             ),
                           ]),
                         ),
@@ -343,7 +416,7 @@ class _HomePageState extends State<HomePage> {
                           child: Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
                         if (hasDubbing) const SizedBox(height: 10),
-                        _buildGrid(popularList),
+                        _buildGridPoster(popularList),
                       ])
                     else
                       Column(children: [
@@ -351,7 +424,7 @@ class _HomePageState extends State<HomePage> {
                           padding: EdgeInsets.symmetric(horizontal: 15),
                           child: Text("Terbaru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
-                        _buildGrid(terbaruList),
+                        _buildGridPoster(terbaruList),
                       ]),
                   ]),
                 ),
