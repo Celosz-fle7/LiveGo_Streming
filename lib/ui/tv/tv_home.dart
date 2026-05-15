@@ -15,7 +15,7 @@ class _TVHomePageState extends State<TVHomePage> {
   List dubbingList = [], popularList = [], terbaruList = [], platforms = [];
   Map? banner;
   bool loading = true, hasDubbing = false;
-  String selS = "freereels", selC = "Dubbing";
+  String selS = "FreeReels", selC = "Dubbing";
   int _selectedMenuIdx = 0;
   bool _isSidebarExpanded = false;
   
