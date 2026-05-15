@@ -138,11 +138,11 @@ class _TVHomePageState extends State<TVHomePage> {
     return [...unwatched, ...watched];
   }
 
-  Widget _buildGrid(List list, String emptyMessage) {
+  Widget _buildGrid(List list) {
     if (list.isEmpty) {
-      return SizedBox(
+      return const SizedBox(
         height: 120,
-        child: Center(child: Text(emptyMessage, style: const TextStyle(color: Colors.white38, fontSize: 12))),
+        child: Center(child: Text("Tidak ada konten sulih suara", style: TextStyle(color: Colors.white38, fontSize: 12))),
       );
     }
     final processedList = _filterAndShuffle(list);
@@ -152,8 +152,73 @@ class _TVHomePageState extends State<TVHomePage> {
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), 
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), 
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6, 
-          childAspectRatio: 0.7, crossAxisSpacing: 12, mainAxisSpacing: 14
+          crossAxisCount: 6, childAspectRatio: 0.7, crossAxisSpacing: 12, mainAxisSpacing: 14
+        ),
+        itemCount: processedList.length > 18 ? 18 : processedList.length,
+        itemBuilder: (c, i) {
+          final item = processedList[i];
+          return TVButton(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => TVPlayerPage(id: item['id'].toString(), source: selS, title: item['title'] ?? 'No Title', ep: '1'))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
+              const SizedBox(height: 5),
+              Text(item['title'] ?? 'No Title', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  // SINKRONISASI 1: Fungsi Grid Populer Khusus TV (Bypass Alur Sukses HP ke TV)
+  Widget _buildGridPopular(List list) {
+    if (list.isEmpty) {
+      return const SizedBox(
+        height: 120,
+        child: Center(child: Text("Tidak ada konten populer tersedia", style: TextStyle(color: Colors.white38, fontSize: 12))),
+      );
+    }
+    final processedList = _filterAndShuffle(list);
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: GridView.builder(
+        shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), 
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), 
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6, childAspectRatio: 0.7, crossAxisSpacing: 12, mainAxisSpacing: 14
+        ),
+        itemCount: processedList.length > 18 ? 18 : processedList.length,
+        itemBuilder: (c, i) {
+          final item = processedList[i];
+          return TVButton(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => TVPlayerPage(id: item['id'].toString(), source: selS, title: item['title'] ?? 'No Title', ep: '1'))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
+              const SizedBox(height: 5),
+              Text(item['title'] ?? 'No Title', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  // SINKRONISASI 2: Fungsi Grid Terbaru Khusus TV (Bypass Alur Sukses HP ke TV)
+  Widget _buildGridTerbaru(List list) {
+    if (list.isEmpty) {
+      return const SizedBox(
+        height: 120,
+        child: Center(child: Text("Tidak ada rilisan terbaru tersedia", style: TextStyle(color: Colors.white38, fontSize: 12))),
+      );
+    }
+    final processedList = _filterAndShuffle(list);
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: GridView.builder(
+        shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), 
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), 
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6, childAspectRatio: 0.7, crossAxisSpacing: 12, mainAxisSpacing: 14
         ),
         itemCount: processedList.length > 18 ? 18 : processedList.length,
         itemBuilder: (c, i) {
@@ -254,12 +319,10 @@ class _TVHomePageState extends State<TVHomePage> {
                       ),
                     ),
                     
-                    // FIX FINAL: IMPLEMENTASI STRUKTUR TOMBOL SEJAJAR BERDAMPINGAN (PLATFORM DI KIRI & KATEGORI DI KANAN)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
-                          // Sisi Kiri: List Kapsul Platform
                           if (platforms.isNotEmpty) Expanded(
                             child: SizedBox(
                               height: 34,
@@ -283,7 +346,6 @@ class _TVHomePageState extends State<TVHomePage> {
                             ),
                           ),
                           const SizedBox(width: 20),
-                          // Sisi Kanan: Dua Tombol Menu Pilihan Kategori Khas Gambar CineFlow Anda
                           Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                             TVButton(onTap: () { setState(() { selC = "Trending"; fetch(forceRefresh: true); }); }, child: Column(mainAxisSize: MainAxisSize.min, children: [Text("Trending", style: TextStyle(color: selC == "Trending" ? Colors.white : Colors.white54, fontSize: 12, fontWeight: selC == "Trending" ? FontWeight.bold : FontWeight.normal)), Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 45, color: selC == "Trending" ? const Color(0xFF06B6D4) : Colors.transparent)])),
                             const SizedBox(width: 16),
@@ -295,16 +357,17 @@ class _TVHomePageState extends State<TVHomePage> {
                     
                     const SizedBox(height: 12),
                     
+                    // SINKRONISASI INTEGRASI TOTAL: Memanggil Grid Khusus Berdasarkan Tab Aktif
                     if (selC == "Trending") ...[
                       if (hasDubbing) ...[
                         const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Sulih Suara", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                        _buildGrid(dubbingList, "Tidak ada konten sulih suara"),
+                        _buildGrid(dubbingList),
                       ],
                       const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                      _buildGrid(popularList, "Tidak ada konten populer tersedia"),
+                      _buildGridPopular(popularList), // Panggil grid popular sukses ter-bypass HP
                     ] else ...[
                       const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Rilisan Baru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                      _buildGrid(terbaruList, "Tidak ada rilisan terbaru tersedia"),
+                      _buildGridTerbaru(terbaruList), // Panggil grid terbaru sukses ter-bypass HP
                     ],
                     const SizedBox(height: 20),
                   ]),
