@@ -19,7 +19,7 @@ class _TVHomePageState extends State<TVHomePage> {
   Map? banner;
   bool loading = true;
   bool refreshing = false;
-  String selS = "";
+  String selS = "FreeReels"; // Set kata kunci default aman sejak awal awal
   String selC = "Trending"; 
   List<String> platforms = [];
   bool hasDubbing = false;
@@ -64,11 +64,14 @@ class _TVHomePageState extends State<TVHomePage> {
     }
     setState(() {
       platforms = activeList;
+      // FIX UTAMA: Pemasangan proteksi agar tidak crash 'No element' jika list kosong
       if (platforms.isNotEmpty) {
         selS = platforms.first; 
+      } else {
+        selS = "FreeReels";
       }
     });
-    if (platforms.isNotEmpty) fetch(forceRefresh: true);
+    fetch(forceRefresh: true);
   }
 
   Future<void> fetch({bool forceRefresh = false}) async {
@@ -170,7 +173,6 @@ class _TVHomePageState extends State<TVHomePage> {
     );
   }
 
-  // SINKRONISASI 1: Fungsi Grid Populer Khusus TV (Bypass Alur Sukses HP ke TV)
   Widget _buildGridPopular(List list) {
     if (list.isEmpty) {
       return const SizedBox(
@@ -203,7 +205,6 @@ class _TVHomePageState extends State<TVHomePage> {
     );
   }
 
-  // SINKRONISASI 2: Fungsi Grid Terbaru Khusus TV (Bypass Alur Sukses HP ke TV)
   Widget _buildGridTerbaru(List list) {
     if (list.isEmpty) {
       return const SizedBox(
@@ -357,17 +358,16 @@ class _TVHomePageState extends State<TVHomePage> {
                     
                     const SizedBox(height: 12),
                     
-                    // SINKRONISASI INTEGRASI TOTAL: Memanggil Grid Khusus Berdasarkan Tab Aktif
                     if (selC == "Trending") ...[
                       if (hasDubbing) ...[
                         const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Sulih Suara", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
                         _buildGrid(dubbingList),
                       ],
                       const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                      _buildGridPopular(popularList), // Panggil grid popular sukses ter-bypass HP
+                      _buildGridPopular(popularList), 
                     ] else ...[
                       const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Rilisan Baru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                      _buildGridTerbaru(terbaruList), // Panggil grid terbaru sukses ter-bypass HP
+                      _buildGridTerbaru(terbaruList), 
                     ],
                     const SizedBox(height: 20),
                   ]),
