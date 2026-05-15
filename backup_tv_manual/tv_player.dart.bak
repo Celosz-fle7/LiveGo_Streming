@@ -17,7 +17,6 @@ class TVPlayerPage extends StatefulWidget {
 }
 
 class _TVPlayerPageState extends State<TVPlayerPage> {
-  late FocusNode _keyboardFocusNode;
   VideoPlayerController? _controller;
   List episodes = [], qualities = [];
   Map? dramaData;
@@ -30,10 +29,10 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   bool isStretchMode = false;
 
   @override
-  void initState() { super.initState(); _keyboardFocusNode = FocusNode(); _keyboardFocusNode.requestFocus(); _loadData(); _checkFavorite(); }
+  void initState() { super.initState(); _loadData(); _checkFavorite(); }
 
   @override
-  void dispose() { _keyboardFocusNode.dispose(); _controller?.dispose(); _hideTimer?.cancel(); super.dispose(); }
+  void dispose() { _controller?.dispose(); _hideTimer?.cancel(); super.dispose(); }
 
   Future<void> _checkFavorite() async { 
     isFavorite = await DatabaseHelper().isFavorite(widget.id); 
@@ -165,7 +164,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: _keyboardFocusNode,
+      focusNode: FocusNode()..requestFocus(),
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
         backgroundColor: Colors.black,
