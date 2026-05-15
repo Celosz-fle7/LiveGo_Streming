@@ -12,14 +12,16 @@ class TVHomePage extends StatefulWidget {
   @override State<TVHomePage> createState() => _TVHomePageState();
 }
 
-class _TVHomePageState extends State<TVHomePage> {
+class _TVHomePageState extends State<TVHomePage> with AutomaticKeepAliveClientMixin {
+  @override bool get wantKeepAlive => true;
+
   List dubbingList = [];
   List popularList = [];
   List terbaruList = [];
   Map? banner;
   bool loading = true;
   bool refreshing = false;
-  String selS = "FreeReels"; // Set kata kunci default aman sejak awal awal
+  String selS = "FreeReels";
   String selC = "Trending"; 
   List<String> platforms = [];
   bool hasDubbing = false;
@@ -64,12 +66,8 @@ class _TVHomePageState extends State<TVHomePage> {
     }
     setState(() {
       platforms = activeList;
-      // FIX UTAMA: Pemasangan proteksi agar tidak crash 'No element' jika list kosong
-      if (platforms.isNotEmpty) {
-        selS = platforms.first; 
-      } else {
-        selS = "FreeReels";
-      }
+      if (platforms.isNotEmpty) selS = platforms.first; 
+      else selS = "FreeReels";
     });
     fetch(forceRefresh: true);
   }
@@ -99,10 +97,7 @@ class _TVHomePageState extends State<TVHomePage> {
       final dubRes = await ApiService.get("/api/v2/search?category_p=$selS&q=sulih%20suara&lang=id", forceRefresh: forceRefresh);
       if (dubRes != null && dubRes['data'] != null) {
         final dubData = dubRes['data'] is List ? dubRes['data'] : (dubRes['data']['dramas'] ?? []);
-        setState(() {
-          dubbingList = dubData;
-          hasDubbing = dubData.isNotEmpty;
-        });
+        setState(() { dubbingList = dubData; hasDubbing = dubData.isNotEmpty; });
       }
       setState(() => _loadingProgress++);
       
@@ -130,11 +125,8 @@ class _TVHomePageState extends State<TVHomePage> {
     final watched = <dynamic>[];
     for (var item in items) {
       final id = item['id']?.toString() ?? '';
-      if (moveWatchedToBottom && watchedIds.contains(id)) {
-        watched.add(item);
-      } else {
-        unwatched.add(item);
-      }
+      if (moveWatchedToBottom && watchedIds.contains(id)) watched.add(item);
+      else unwatched.add(item);
     }
     unwatched.shuffle(_random);
     watched.shuffle(_random);
@@ -142,12 +134,7 @@ class _TVHomePageState extends State<TVHomePage> {
   }
 
   Widget _buildGrid(List list) {
-    if (list.isEmpty) {
-      return const SizedBox(
-        height: 120,
-        child: Center(child: Text("Tidak ada konten sulih suara", style: TextStyle(color: Colors.white38, fontSize: 12))),
-      );
-    }
+    if (list.isEmpty) return const SizedBox(height: 120, child: Center(child: Text("Tidak ada konten sulih suara", style: TextStyle(color: Colors.white38, fontSize: 12))));
     final processedList = _filterAndShuffle(list);
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
@@ -158,12 +145,15 @@ class _TVHomePageState extends State<TVHomePage> {
           crossAxisCount: 6, childAspectRatio: 0.7, crossAxisSpacing: 12, mainAxisSpacing: 14
         ),
         itemCount: processedList.length > 18 ? 18 : processedList.length,
+        addRepaintBoundaries: true,
+        cacheExtent: 1000,
+        addAutomaticKeepAlives: false,
         itemBuilder: (c, i) {
           final item = processedList[i];
           return TVButton(
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => TVPlayerPage(id: item['id'].toString(), source: selS, title: item['title'] ?? 'No Title', ep: '1'))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
+              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, memCacheWidth: 180, memCacheHeight: 257, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
               const SizedBox(height: 5),
               Text(item['title'] ?? 'No Title', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
@@ -174,12 +164,7 @@ class _TVHomePageState extends State<TVHomePage> {
   }
 
   Widget _buildGridPopular(List list) {
-    if (list.isEmpty) {
-      return const SizedBox(
-        height: 120,
-        child: Center(child: Text("Tidak ada konten populer tersedia", style: TextStyle(color: Colors.white38, fontSize: 12))),
-      );
-    }
+    if (list.isEmpty) return const SizedBox(height: 120, child: Center(child: Text("Tidak ada konten populer tersedia", style: TextStyle(color: Colors.white38, fontSize: 12))));
     final processedList = _filterAndShuffle(list);
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
@@ -190,12 +175,15 @@ class _TVHomePageState extends State<TVHomePage> {
           crossAxisCount: 6, childAspectRatio: 0.7, crossAxisSpacing: 12, mainAxisSpacing: 14
         ),
         itemCount: processedList.length > 18 ? 18 : processedList.length,
+        addRepaintBoundaries: true,
+        cacheExtent: 1000,
+        addAutomaticKeepAlives: false,
         itemBuilder: (c, i) {
           final item = processedList[i];
           return TVButton(
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => TVPlayerPage(id: item['id'].toString(), source: selS, title: item['title'] ?? 'No Title', ep: '1'))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
+              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, memCacheWidth: 180, memCacheHeight: 257, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
               const SizedBox(height: 5),
               Text(item['title'] ?? 'No Title', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
@@ -206,12 +194,7 @@ class _TVHomePageState extends State<TVHomePage> {
   }
 
   Widget _buildGridTerbaru(List list) {
-    if (list.isEmpty) {
-      return const SizedBox(
-        height: 120,
-        child: Center(child: Text("Tidak ada rilisan terbaru tersedia", style: TextStyle(color: Colors.white38, fontSize: 12))),
-      );
-    }
+    if (list.isEmpty) return const SizedBox(height: 120, child: Center(child: Text("Tidak ada rilisan terbaru tersedia", style: TextStyle(color: Colors.white38, fontSize: 12))));
     final processedList = _filterAndShuffle(list);
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
@@ -222,12 +205,15 @@ class _TVHomePageState extends State<TVHomePage> {
           crossAxisCount: 6, childAspectRatio: 0.7, crossAxisSpacing: 12, mainAxisSpacing: 14
         ),
         itemCount: processedList.length > 18 ? 18 : processedList.length,
+        addRepaintBoundaries: true,
+        cacheExtent: 1000,
+        addAutomaticKeepAlives: false,
         itemBuilder: (c, i) {
           final item = processedList[i];
           return TVButton(
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => TVPlayerPage(id: item['id'].toString(), source: selS, title: item['title'] ?? 'No Title', ep: '1'))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
+              Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item['cover'] ?? '', fit: BoxFit.cover, width: double.infinity, memCacheWidth: 180, memCacheHeight: 257, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10)))),
               const SizedBox(height: 5),
               Text(item['title'] ?? 'No Title', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
@@ -239,6 +225,7 @@ class _TVHomePageState extends State<TVHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0)),
       child: Scaffold(
@@ -291,86 +278,88 @@ class _TVHomePageState extends State<TVHomePage> {
             child: loading 
               ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4))) 
               : SingleChildScrollView(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    if (banner != null) Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: TVButton(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => TVPlayerPage(id: banner!['id'].toString(), source: selS, title: banner!['title'] ?? 'No Title', ep: '1'))),
-                        child: Container(
-                          height: 130, width: double.infinity, padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: const Color(0xFF0F1522), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white12, width: 0.5)),
-                          child: Row(children: [
-                            Expanded(
-                              flex: 4,
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)), child: const Text("PROMO TERBARU", style: TextStyle(color: Color(0xFF06B6D4), fontSize: 8, fontWeight: FontWeight.bold))),
-                                const SizedBox(height: 6),
-                                Text(banner!['title'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                const SizedBox(height: 4),
-                                Text(banner!['description'] ?? 'Tonton kisah selengkapnya sekarang juga di server terbaik LiveGO.', style: const TextStyle(color: Colors.white54, fontSize: 10, height: 1.3), maxLines: 2, overflow: TextOverflow.ellipsis),
-                              ]),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 1,
-                              child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: banner!['cover'] ?? '', fit: BoxFit.cover, height: double.infinity, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10))),
-                            ),
-                          ]),
+                  child: RepaintBoundary(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (banner != null) Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: TVButton(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => TVPlayerPage(id: banner!['id'].toString(), source: selS, title: banner!['title'] ?? 'No Title', ep: '1'))),
+                          child: Container(
+                            height: 130, width: double.infinity, padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(color: const Color(0xFF0F1522), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white12, width: 0.5)),
+                            child: Row(children: [
+                              Expanded(
+                                flex: 4,
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)), child: const Text("PROMO TERBARU", style: TextStyle(color: Color(0xFF06B6D4), fontSize: 8, fontWeight: FontWeight.bold))),
+                                  const SizedBox(height: 6),
+                                  Text(banner!['title'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 4),
+                                  Text(banner!['description'] ?? 'Tonton kisah selengkapnya sekarang juga di server terbaik LiveGO.', style: const TextStyle(color: Colors.white54, fontSize: 10, height: 1.3), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                ]),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                flex: 1,
+                                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: banner!['cover'] ?? '', fit: BoxFit.cover, height: double.infinity, memCacheWidth: 200, memCacheHeight: 286, placeholder: (_, __) => Container(color: Colors.white10), errorWidget: (_, __, ___) => Container(color: Colors.white10))),
+                              ),
+                            ]),
+                          ),
                         ),
                       ),
-                    ),
-                    
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          if (platforms.isNotEmpty) Expanded(
-                            child: SizedBox(
-                              height: 34,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal, itemCount: platforms.length,
-                                itemBuilder: (context, index) {
-                                  final p = platforms[index]; final isSelected = selS == p;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 6.0),
-                                    child: TVButton(
-                                      onTap: () async { setState(() => selS = p); await fetch(forceRefresh: true); },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 14), alignment: Alignment.center,
-                                        decoration: BoxDecoration(color: isSelected ? const Color(0xFF06B6D4) : const Color(0xFF1E293B), borderRadius: BorderRadius.circular(10), border: Border.all(color: isSelected ? const Color(0xFF06B6D4) : Colors.white12, width: 0.5)),
-                                        child: Text(p, style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                      
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            if (platforms.isNotEmpty) Expanded(
+                              child: SizedBox(
+                                height: 34,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal, itemCount: platforms.length,
+                                  itemBuilder: (context, index) {
+                                    final p = platforms[index]; final isSelected = selS == p;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 6.0),
+                                      child: TVButton(
+                                        onTap: () async { setState(() => selS = p); await fetch(forceRefresh: true); },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14), alignment: Alignment.center,
+                                          decoration: BoxDecoration(color: isSelected ? const Color(0xFF06B6D4) : const Color(0xFF1E293B), borderRadius: BorderRadius.circular(10), border: Border.all(color: isSelected ? const Color(0xFF06B6D4) : Colors.white12, width: 0.5)),
+                                          child: Text(p, style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 20),
-                          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                            TVButton(onTap: () { setState(() { selC = "Trending"; fetch(forceRefresh: true); }); }, child: Column(mainAxisSize: MainAxisSize.min, children: [Text("Trending", style: TextStyle(color: selC == "Trending" ? Colors.white : Colors.white54, fontSize: 12, fontWeight: selC == "Trending" ? FontWeight.bold : FontWeight.normal)), Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 45, color: selC == "Trending" ? const Color(0xFF06B6D4) : Colors.transparent)])),
-                            const SizedBox(width: 16),
-                            TVButton(onTap: () { setState(() { selC = "Terbaru"; fetch(forceRefresh: true); }); }, child: Column(mainAxisSize: MainAxisSize.min, children: [Text("Terbaru", style: TextStyle(color: selC == "Terbaru" ? Colors.white : Colors.white54, fontSize: 12, fontWeight: selC == "Terbaru" ? FontWeight.bold : FontWeight.normal)), Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 40, color: selC == "Terbaru" ? const Color(0xFF06B6D4) : Colors.transparent)])),
-                          ]),
-                        ],
+                            const SizedBox(width: 20),
+                            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                              TVButton(onTap: () { setState(() { selC = "Trending"; fetch(forceRefresh: true); }); }, child: Column(mainAxisSize: MainAxisSize.min, children: [Text("Trending", style: TextStyle(color: selC == "Trending" ? Colors.white : Colors.white54, fontSize: 12, fontWeight: selC == "Trending" ? FontWeight.bold : FontWeight.normal)), Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 45, color: selC == "Trending" ? const Color(0xFF06B6D4) : Colors.transparent)])),
+                              const SizedBox(width: 16),
+                              TVButton(onTap: () { setState(() { selC = "Terbaru"; fetch(forceRefresh: true); }); }, child: Column(mainAxisSize: MainAxisSize.min, children: [Text("Terbaru", style: TextStyle(color: selC == "Terbaru" ? Colors.white : Colors.white54, fontSize: 12, fontWeight: selC == "Terbaru" ? FontWeight.bold : FontWeight.normal)), Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 40, color: selC == "Terbaru" ? const Color(0xFF06B6D4) : Colors.transparent)])),
+                            ]),
+                          ],
+                        ),
                       ),
-                    ),
-                    
-                    const SizedBox(height: 12),
-                    
-                    if (selC == "Trending") ...[
-                      if (hasDubbing) ...[
-                        const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Sulih Suara", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                        _buildGrid(dubbingList),
+                      
+                      const SizedBox(height: 12),
+                      
+                      if (selC == "Trending") ...[
+                        if (hasDubbing) ...[
+                          const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Sulih Suara", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                          _buildGrid(dubbingList),
+                        ],
+                        const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                        _buildGridPopular(popularList), 
+                      ] else ...[
+                        const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Rilisan Baru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                        _buildGridTerbaru(terbaruList), 
                       ],
-                      const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Populer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                      _buildGridPopular(popularList), 
-                    ] else ...[
-                      const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text("Rilisan Baru", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                      _buildGridTerbaru(terbaruList), 
-                    ],
-                    const SizedBox(height: 20),
-                  ]),
+                      const SizedBox(height: 20),
+                    ]),
+                  ),
                 ),
           ),
         ]),

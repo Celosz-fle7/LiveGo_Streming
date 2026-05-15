@@ -25,7 +25,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   int currentEpisode = 1, totalEpisodes = 0;
   double _position = 0, _duration = 0;
   Timer? _hideTimer;
-  String currentQuality = "Auto";
+  String currentQuality = "720p";
   double? videoAspectRatio;
   bool isStretchMode = false;
 
@@ -35,70 +35,84 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   @override
   void dispose() { _keyboardFocusNode.dispose(); _controller?.dispose(); _hideTimer?.cancel(); super.dispose(); }
 
-  Future<void> _checkFavorite() async { 
-    isFavorite = await DatabaseHelper().isFavorite(widget.id); 
-    setState(() {}); 
-  }
+  Future<void> _checkFavorite() async { isFavorite = await DatabaseHelper().isFavorite(widget.id); if (mounted) setState(() {}); }
 
   Future<void> _toggleFavorite() async {
-    if (isFavorite) { 
-      await DatabaseHelper().removeFromFavorites(widget.id); 
-    } else {
+    if (isFavorite) { await DatabaseHelper().removeFromFavorites(widget.id); } 
+    else {
       await DatabaseHelper().addToFavorites({
         'drama_id': widget.id, 'drama_title': widget.title, 'drama_poster': dramaData?['cover'],
         'total_episodes': dramaData?['total_episodes'] ?? totalEpisodes, 'platform': widget.source,
         'added_at': DateTime.now().millisecondsSinceEpoch,
       });
     }
-    setState(() => isFavorite = !isFavorite);
+    if (mounted) setState(() => isFavorite = !isFavorite);
   }
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     currentEpisode = widget.ep != null ? int.parse(widget.ep!) : (prefs.getInt('last_ep_${widget.id}') ?? 1);
-    currentQuality = prefs.getString('pref_quality') ?? "Auto";
+    currentQuality = prefs.getString('pref_quality') ?? "720p";
     
     final res = await ApiService.get("/api/v2/detail?category_p=${widget.source}&id=${widget.id}&lang=id");
     if (res != null && res['data'] != null) {
       setState(() { dramaData = res['data']; episodes = dramaData?['chapters'] ?? []; totalEpisodes = episodes.length; });
       await _loadVideo(currentEpisode);
-    } else { setState(() => isLoading = false); }
+    } else { if (mounted) setState(() => isLoading = false); }
   }
 
   Future<void> _loadVideo(int episodeNum) async {
     setState(() { isLoading = true; currentEpisode = episodeNum; });
-    await DatabaseHelper().addToHistory({
+    // Non-blocking history insert
+    unawaited(DatabaseHelper().addToHistory({
       'drama_id': widget.id, 'drama_title': widget.title, 'drama_poster': dramaData?['cover'],
       'episode_id': episodeNum.toString(), 'episode_number': episodeNum, 'position_seconds': 0,
       'duration_seconds': 0, 'last_watched': DateTime.now().millisecondsSinceEpoch, 'platform': widget.source,
-    });
+    }));
     
     final res = await ApiService.get("/api/v2/video?category_p=${widget.source}&id=${widget.id}&chapterId=$episodeNum&lang=id");
     if (res != null && res['success'] == true && res['data'] != null) {
       qualities = res['data']['streams'] ?? [];
+      // Filter kualitas yang didukung TV (480p, 720p, 1080p)
+      final supported = qualities.where((q) => ['480p','720p','1080p'].contains(q['quality'])).toList();
+      if (supported.isNotEmpty) qualities = supported;
       
       String videoUrl = '';
       if (qualities.isNotEmpty) {
-        for (var q in qualities) { 
-          if (q['quality'] == currentQuality) { videoUrl = q['url']; break; } 
-        }
+        for (var q in qualities) { if (q['quality'] == currentQuality) { videoUrl = q['url']; break; } }
         if (videoUrl.isEmpty) videoUrl = qualities[0]['url'];
       }
       
       if (videoUrl.isNotEmpty) {
         _controller?.dispose();
         _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
+          ..setVolume(1.0)
           ..initialize().then((_) {
-            setState(() { isLoading = false; _duration = _controller!.value.duration.inSeconds.toDouble(); videoAspectRatio = _controller!.value.aspectRatio; });
-            _controller!.play(); isPlaying = true; _startHideTimer();
+            if (mounted) {
+              setState(() {
+                isLoading = false;
+                _duration = _controller!.value.duration.inSeconds.toDouble();
+                videoAspectRatio = _controller!.value.aspectRatio;
+              });
+              _controller!.play();
+              isPlaying = true;
+              _startHideTimer();
+            }
+          }).catchError((e) {
+            if (mounted) setState(() => isLoading = false);
           });
         _controller!.addListener(() {
-          if (mounted) setState(() { _position = _controller!.value.position.inSeconds.toDouble(); _duration = _controller!.value.duration.inSeconds.toDouble(); });
+          if (!mounted) return;
+          final newPos = _controller!.value.position.inSeconds.toDouble();
+          final newDur = _controller!.value.duration.inSeconds.toDouble();
+          if ((newPos - _position).abs() > 0.5 || (newDur - _duration).abs() > 0.5) {
+            setState(() { _position = newPos; _duration = newDur; });
+          }
           if (_controller!.value.position >= _controller!.value.duration && _controller!.value.duration != Duration.zero) _nextEpisode();
         });
-        final prefs = await SharedPreferences.getInstance(); prefs.setInt('last_ep_${widget.id}', episodeNum);
-      } else { setState(() => isLoading = false); }
-    } else { setState(() => isLoading = false); }
+        final prefs = await SharedPreferences.getInstance(); unawaited(prefs.setInt('last_ep_${widget.id}', episodeNum));
+      } else { if (mounted) setState(() => isLoading = false); }
+    } else { if (mounted) setState(() => isLoading = false); }
   }
 
   void _startHideTimer() { 
@@ -120,11 +134,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
     final label = event.logicalKey.keyLabel.toLowerCase();
     
     if (label == 'go back' || label == 'escape' || event.logicalKey == LogicalKeyboardKey.backspace) {
-      if (_showEpisodeSidebar) {
-        setState(() => _showEpisodeSidebar = false);
-        _startHideTimer();
-        return;
-      }
+      if (_showEpisodeSidebar) { setState(() => _showEpisodeSidebar = false); _startHideTimer(); return; }
     }
 
     if (_showEpisodeSidebar) return; 
@@ -150,7 +160,7 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
           return ListTile(
             title: Text(quality, style: const TextStyle(color: Colors.white)),
             trailing: currentQuality == quality ? const Icon(Icons.check, color: Color(0xFF06B6D4)) : null,
-            onTap: () async { currentQuality = quality; final prefs = await SharedPreferences.getInstance(); prefs.setString('pref_quality', currentQuality); Navigator.pop(c); _loadVideo(currentEpisode); },
+            onTap: () async { currentQuality = quality; final prefs = await SharedPreferences.getInstance(); await prefs.setString('pref_quality', currentQuality); Navigator.pop(c); _loadVideo(currentEpisode); },
           );
         }).toList()),
       ),
@@ -186,7 +196,6 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text("${widget.title} - Ep $currentEpisode / $totalEpisodes", style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  // FIX 2: Mengganti maxWidth mentah menggunakan BoxConstraints
                   if (dramaData != null) Container(constraints: const BoxConstraints(maxWidth: 600), child: Text(dramaData!['description'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   const SizedBox(height: 12),
                   Row(children: [
@@ -202,7 +211,6 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
               bottom: 0, left: 0, right: 0,
               child: Container(
                 padding: const EdgeInsets.all(30),
-                // FIX 3: Mengganti warna typo Colors.black90 menjadi Colors.black87 resmi Flutter
                 decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter)),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Row(children: [
@@ -253,7 +261,6 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
                               child: TVButton(
-                                // FIX 4: Menghapus parameter autoFocus pemicu error
                                 onTap: () { setState(() => _showEpisodeSidebar = false); _loadVideo(epNum); },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
