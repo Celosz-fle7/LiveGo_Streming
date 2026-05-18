@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class TVPlayerPage extends StatefulWidget {
   final String videoUrl;
@@ -18,40 +19,31 @@ class TVPlayerPage extends StatefulWidget {
 }
 
 class _TVPlayerPageState extends State<TVPlayerPage> {
+
   late VideoPlayerController controller;
   final FocusNode focusNode = FocusNode();
 
   bool showControls = true;
   Timer? hideTimer;
-  DateTime lastKeyPress = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+
+    WakelockPlus.enable();
 
     controller = VideoPlayerController.networkUrl(
       Uri.parse(widget.videoUrl),
     );
 
     controller.initialize().then((_) {
-      if (!mounted) return;
       setState(() {});
       controller.play();
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      focusNode.requestFocus();
-    });
+    focusNode.requestFocus();
 
     _startHideTimer();
-  }
-
-  @override
-  void dispose() {
-    hideTimer?.cancel();
-    focusNode.dispose();
-    controller.dispose();
-    super.dispose();
   }
 
   void _startHideTimer() {
@@ -64,203 +56,146 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   }
 
   void _showControls() {
-    if (!showControls) {
-      setState(() => showControls = true);
-    }
+    setState(() => showControls = true);
     _startHideTimer();
   }
 
-  KeyEventResult onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-
-    final now = DateTime.now();
-    if (now.difference(lastKeyPress) <
-        const Duration(milliseconds: 120)) {
-      return KeyEventResult.handled;
-    }
-    lastKeyPress = now;
+  void _onKey(RawKeyEvent event) {
+    if (event is! RawKeyDownEvent) return;
 
     _showControls();
 
     final key = event.logicalKey;
 
-    /// PLAY / PAUSE
     if (key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter) {
-      if (controller.value.isPlaying) {
-        controller.pause();
-      } else {
-        controller.play();
-      }
-      setState(() {});
-      return KeyEventResult.handled;
+      controller.value.isPlaying
+          ? controller.pause()
+          : controller.play();
     }
 
-    /// SEEK FORWARD
     if (key == LogicalKeyboardKey.arrowRight) {
-      final pos = controller.value.position +
-          const Duration(seconds: 10);
-
-      final max = controller.value.duration;
-
       controller.seekTo(
-        pos > max ? max : pos,
+        controller.value.position + const Duration(seconds: 10),
       );
-
-      return KeyEventResult.handled;
     }
 
-    /// SEEK BACKWARD
     if (key == LogicalKeyboardKey.arrowLeft) {
-      final pos = controller.value.position -
-          const Duration(seconds: 10);
-
       controller.seekTo(
-        pos < Duration.zero
-            ? Duration.zero
-            : pos,
+        controller.value.position - const Duration(seconds: 10),
       );
-
-      return KeyEventResult.handled;
     }
 
-    return KeyEventResult.handled;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    hideTimer?.cancel();
+    focusNode.dispose();
+    controller.dispose();
+    WakelockPlus.disable();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+
       body: Focus(
         focusNode: focusNode,
-        onKeyEvent: onKey,
+        onKeyEvent: (node, event) {
+          _onKey(event);
+          return KeyEventResult.handled;
+        },
 
         child: Stack(
           children: [
 
-            /// VIDEO
+            // VIDEO
             Center(
               child: controller.value.isInitialized
                   ? AspectRatio(
-                      aspectRatio:
-                          controller.value.aspectRatio,
+                      aspectRatio: controller.value.aspectRatio,
                       child: VideoPlayer(controller),
                     )
-                  : const CircularProgressIndicator(
-                      color: Colors.cyan,
-                    ),
+                  : const CircularProgressIndicator(),
             ),
 
-            /// CONTROLS
+            // CONTROLS
             AnimatedOpacity(
               opacity: showControls ? 1 : 0,
-              duration:
-                  const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 200),
 
-              child: IgnorePointer(
-                ignoring: !showControls,
-
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.center,
-                      colors: [
-                        Colors.black.withOpacity(0.9),
-                        Colors.transparent,
-                      ],
-                    ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.center,
+                    colors: [
+                      Colors.black.withOpacity(0.8),
+                      Colors.transparent,
+                    ],
                   ),
+                ),
 
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(25),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
 
-                      child: Column(
-                        mainAxisAlignment:
-                            MainAxisAlignment.end,
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-
-                        children: [
-
-                          Text(
-                            widget.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
+                        ),
 
-                          const SizedBox(height: 20),
+                        const SizedBox(height: 10),
 
-                          /// PROGRESS
-                          ValueListenableBuilder(
-                            valueListenable: controller,
-                            builder: (context, value, _) {
-                              final pos = value
-                                  .position
-                                  .inSeconds
-                                  .toDouble();
+                        ValueListenableBuilder(
+                          valueListenable: controller,
+                          builder: (context, VideoPlayerValue value, _) {
 
-                              final dur = value
-                                  .duration
-                                  .inSeconds
-                                  .toDouble();
+                            final pos = value.position.inSeconds.toDouble();
+                            final dur = value.duration.inSeconds.toDouble();
 
-                              final progress =
-                                  (dur <= 0)
-                                      ? 0.0
-                                      : pos / dur;
+                            return Column(
+                              children: [
 
-                              return Column(
-                                children: [
+                                LinearProgressIndicator(
+                                  value: dur == 0 ? 0 : pos / dur,
+                                  color: Colors.cyan,
+                                  backgroundColor: Colors.white24,
+                                ),
 
-                                  LinearProgressIndicator(
-                                    value: progress,
-                                    minHeight: 6,
-                                    color: Colors.cyan,
-                                    backgroundColor:
-                                        Colors.white24,
-                                  ),
+                                const SizedBox(height: 8),
 
-                                  const SizedBox(height: 10),
-
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment
-                                            .spaceBetween,
-
-                                    children: [
-                                      Text(
-                                        _fmt(
-                                            value.position),
-                                        style:
-                                            const TextStyle(
-                                          color:
-                                              Colors.white,
-                                        ),
-                                      ),
-
-                                      Text(
-                                        _fmt(
-                                            value.duration),
-                                        style:
-                                            const TextStyle(
-                                          color:
-                                              Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _format(value.position),
+                                      style: const TextStyle(color: Colors.white),
+                                    ),
+                                    Text(
+                                      _format(value.duration),
+                                      style: const TextStyle(color: Colors.white),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -272,17 +207,8 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
     );
   }
 
-  String _fmt(Duration d) {
-    String two(int n) =>
-        n.toString().padLeft(2, '0');
-
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-
-    if (h > 0) {
-      return "${two(h)}:${two(m)}:${two(s)}";
-    }
-    return "${two(m)}:${two(s)}";
+  String _format(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return "${two(d.inMinutes)}:${two(d.inSeconds.remainder(60))}";
   }
 }
