@@ -1,23 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
-void main() {
-  runApp(const TVApp());
-}
-
-class TVApp extends StatelessWidget {
-  const TVApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const TVHomePage(),
-    );
-  }
-}
-
 class TVHomePage extends StatefulWidget {
   const TVHomePage({super.key});
 
@@ -26,44 +6,43 @@ class TVHomePage extends StatefulWidget {
 }
 
 class _TVHomePageState extends State<TVHomePage> {
-  final List<String> categories = [
-    "Trending",
-    "Action",
-    "Drama",
-    "Comedy",
+  final FocusNode _focusNode = FocusNode();
+
+  List platforms = [
+    {'id': 'freereels', 'name': 'FreeReels'},
+    {'id': 'shortmax', 'name': 'ShortMax'},
+    {'id': 'dramawave', 'name': 'DramaWave'},
+    {'id': 'netshort', 'name': 'NetShort'}
   ];
 
-  final List<List<String>> posters = List.generate(
-    4,
-    (_) => List.generate(
-      12,
-      (index) =>
-          "https://picsum.photos/300/450?random=${index + 1}",
-    ),
-  );
+  List activeDramas = [];
 
-  int sidebarIndex = 0;
-  int rowIndex = 0;
-  int colIndex = 0;
-
-  bool sidebarFocused = false;
-
-  late FocusNode _focusNode;
-
-  final List<String> menus = [
-    "Home",
-    "Movies",
-    "Series",
-    "Favorites",
-    "Settings"
+  List sidebarMenus = [
+    {'id': 'beranda', 'name': 'Beranda', 'icon': Icons.home},
+    {'id': 'unduhan', 'name': 'Unduhan', 'icon': Icons.download},
+    {'id': 'riwayat', 'name': 'Riwayat', 'icon': Icons.history},
+    {'id': 'favorit', 'name': 'Favorit', 'icon': Icons.favorite},
+    {'id': 'akun', 'name': 'Akun', 'icon': Icons.person},
   ];
+
+  String selectedMenu = 'beranda';
+  String selectedPlatform = 'freereels';
+
+  bool isSidebarExpanded = false;
+  bool isLoading = true;
+
+  int sidebarFocusIndex = 0;
+  int platformFocusIndex = 0;
+  int dramaFocusIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _loadData();
 
-    _focusNode = FocusNode();
-    _focusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -72,68 +51,82 @@ class _TVHomePageState extends State<TVHomePage> {
     super.dispose();
   }
 
-  void handleKey(RawKeyEvent event) {
+  Future<void> _loadData() async {
+    setState(() => isLoading = true);
+
+    final res = await ApiService.get(
+      "/api/v2/detail?category_p=$selectedPlatform&id=all&lang=id",
+    );
+
+    if (res != null && res['success'] == true) {
+      setState(() {
+        activeDramas =
+            res['data']['chapters'] ?? res['data']['films'] ?? [];
+        isLoading = false;
+      });
+    } else {
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _onKey(RawKeyEvent event) {
     if (event is! RawKeyDownEvent) return;
 
     final key = event.logicalKey;
 
     setState(() {
-      if (sidebarFocused) {
-        /// SIDEBAR
+      // LEFT → sidebar
+      if (key == LogicalKeyboardKey.arrowLeft) {
+        isSidebarExpanded = true;
+      }
+
+      // RIGHT → content
+      if (key == LogicalKeyboardKey.arrowRight) {
+        isSidebarExpanded = false;
+      }
+
+      // SIDEBAR NAV
+      if (isSidebarExpanded) {
         if (key == LogicalKeyboardKey.arrowDown &&
-            sidebarIndex < menus.length - 1) {
-          sidebarIndex++;
+            sidebarFocusIndex < sidebarMenus.length - 1) {
+          sidebarFocusIndex++;
         }
 
-        else if (key == LogicalKeyboardKey.arrowUp &&
-            sidebarIndex > 0) {
-          sidebarIndex--;
+        if (key == LogicalKeyboardKey.arrowUp &&
+            sidebarFocusIndex > 0) {
+          sidebarFocusIndex--;
         }
 
-        else if (key == LogicalKeyboardKey.arrowRight) {
-          sidebarFocused = false;
-        }
-
-        return;
-      }
-
-      /// CONTENT
-      if (key == LogicalKeyboardKey.arrowRight &&
-          colIndex < posters[rowIndex].length - 1) {
-        colIndex++;
-      }
-
-      else if (key == LogicalKeyboardKey.arrowLeft) {
-        if (colIndex == 0) {
-          sidebarFocused = true;
-        } else {
-          colIndex--;
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter) {
+          selectedMenu =
+              sidebarMenus[sidebarFocusIndex]['id'];
+          isSidebarExpanded = false;
         }
       }
 
-      else if (key == LogicalKeyboardKey.arrowDown &&
-          rowIndex < categories.length - 1) {
-        rowIndex++;
-
-        if (colIndex >= posters[rowIndex].length) {
-          colIndex = posters[rowIndex].length - 1;
+      // PLATFORM NAV
+      if (!isSidebarExpanded) {
+        if (key == LogicalKeyboardKey.arrowRight &&
+            platformFocusIndex < platforms.length - 1) {
+          platformFocusIndex++;
         }
-      }
 
-      else if (key == LogicalKeyboardKey.arrowUp &&
-          rowIndex > 0) {
-        rowIndex--;
-      }
+        if (key == LogicalKeyboardKey.arrowLeft &&
+            platformFocusIndex > 0) {
+          platformFocusIndex--;
+        }
 
-      else if (key == LogicalKeyboardKey.select ||
-          key == LogicalKeyboardKey.enter) {
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter) {
+          selectedPlatform =
+              platforms[platformFocusIndex]['id'];
+          _loadData();
+        }
 
-        final movie =
-            "Row: $rowIndex  Col: $colIndex";
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(movie)),
-        );
+        if (key == LogicalKeyboardKey.arrowDown) {
+          dramaFocusIndex = 0;
+        }
       }
     });
   }
@@ -141,249 +134,106 @@ class _TVHomePageState extends State<TVHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F14),
+      backgroundColor: const Color(0xFF0D1117),
 
       body: RawKeyboardListener(
         focusNode: _focusNode,
-        onKey: handleKey,
+        onKey: _onKey,
 
         child: Row(
           children: [
-
-            /// SIDEBAR
-            Container(
-              width: 90,
-              color: const Color(0xFF11161D),
+            // SIDEBAR
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: isSidebarExpanded ? 220 : 70,
+              color: const Color(0xFF161B22),
 
               child: Column(
                 children: [
-
-                  const SizedBox(height: 40),
-
-                  const Icon(
-                    Icons.live_tv,
-                    color: Colors.cyan,
-                    size: 36,
+                  const SizedBox(height: 20),
+                  const Text(
+                    "LiveGO TV",
+                    style: TextStyle(
+                      color: Color(0xFF06B6D4),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                  const SizedBox(height: 20),
 
-                  const SizedBox(height: 40),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: sidebarMenus.length,
+                      itemBuilder: (c, i) {
+                        final focused =
+                            isSidebarExpanded &&
+                            sidebarFocusIndex == i;
 
-                  ...List.generate(
-                    menus.length,
-                    (index) {
-
-                      final focused =
-                          sidebarFocused &&
-                          sidebarIndex == index;
-
-                      return AnimatedContainer(
-                        duration:
-                            const Duration(milliseconds: 150),
-
-                        margin: const EdgeInsets.symmetric(
-                          vertical: 10,
-                          horizontal: 10,
-                        ),
-
-                        height: 60,
-
-                        decoration: BoxDecoration(
-                          color: focused
-                              ? Colors.cyan
-                              : Colors.transparent,
-
-                          borderRadius:
-                              BorderRadius.circular(14),
-
-                          boxShadow: focused
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.cyan
-                                        .withOpacity(0.7),
-                                    blurRadius: 18,
-                                    spreadRadius: 1,
-                                  )
-                                ]
-                              : [],
-                        ),
-
-                        child: Icon(
-                          [
-                            Icons.home,
-                            Icons.movie,
-                            Icons.tv,
-                            Icons.favorite,
-                            Icons.settings,
-                          ][index],
-                          color: Colors.white,
-                        ),
-                      );
-                    },
+                        return Container(
+                          margin: const EdgeInsets.all(6),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: focused
+                                ? const Color(0xFF06B6D4)
+                                : Colors.transparent,
+                            borderRadius:
+                                BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            sidebarMenus[i]['icon'],
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
             ),
 
-            /// CONTENT
+            // CONTENT
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(30),
-                itemCount: categories.length,
-
-                itemBuilder: (context, rIndex) {
-
-                  return Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-
-                    children: [
-
-                      Text(
-                        categories[rIndex],
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                        ),
+              child: isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF06B6D4),
                       ),
-
-                      const SizedBox(height: 20),
-
-                      SizedBox(
-                        height: 250,
-
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-
-                          itemCount:
-                              posters[rIndex].length,
-
-                          itemBuilder: (context, cIndex) {
-
-                            final focused =
-                                !sidebarFocused &&
-                                rowIndex == rIndex &&
-                                colIndex == cIndex;
-
-                            return RepaintBoundary(
-                              child: AnimatedScale(
-                                scale:
-                                    focused ? 1.08 : 1.0,
-
-                                duration:
-                                    const Duration(
-                                        milliseconds: 140),
-
-                                child: AnimatedContainer(
-                                  duration:
-                                      const Duration(
-                                          milliseconds:
-                                              140),
-
-                                  width: 160,
-
-                                  margin:
-                                      const EdgeInsets.only(
-                                          right: 18),
-
-                                  decoration: BoxDecoration(
-                                    borderRadius:
-                                        BorderRadius.circular(
-                                            14),
-
-                                    boxShadow: focused
-                                        ? [
-                                            BoxShadow(
-                                              color: Colors
-                                                  .cyan
-                                                  .withOpacity(
-                                                      0.9),
-                                              blurRadius: 25,
-                                              spreadRadius: 3,
-                                            )
-                                          ]
-                                        : [],
-                                  ),
-
-                                  clipBehavior:
-                                      Clip.antiAlias,
-
-                                  child: Stack(
-                                    fit: StackFit.expand,
-
-                                    children: [
-
-                                      Image.network(
-                                        posters[rIndex]
-                                            [cIndex],
-
-                                        fit: BoxFit.cover,
-
-                                        filterQuality:
-                                            FilterQuality
-                                                .medium,
-                                      ),
-
-                                      Container(
-                                        decoration:
-                                            BoxDecoration(
-                                          gradient:
-                                              LinearGradient(
-                                            begin:
-                                                Alignment
-                                                    .bottomCenter,
-                                            end: Alignment
-                                                .center,
-
-                                            colors: [
-                                              Colors.black
-                                                  .withOpacity(
-                                                      0.9),
-                                              Colors
-                                                  .transparent,
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-
-                                      Positioned(
-                                        left: 12,
-                                        right: 12,
-                                        bottom: 12,
-
-                                        child: Text(
-                                          "Movie ${cIndex + 1}",
-
-                                          maxLines: 1,
-
-                                          overflow:
-                                              TextOverflow
-                                                  .ellipsis,
-
-                                          style:
-                                              const TextStyle(
-                                            color:
-                                                Colors.white,
-                                            fontWeight:
-                                                FontWeight
-                                                    .bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 5,
+                        childAspectRatio: 0.7,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
                       ),
+                      itemCount: activeDramas.length,
+                      itemBuilder: (c, i) {
+                        final item = activeDramas[i];
 
-                      const SizedBox(height: 40),
-                    ],
-                  );
-                },
-              ),
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          decoration: BoxDecoration(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                            border: Border.all(
+                              color: i == dramaFocusIndex
+                                  ? const Color(0xFF06B6D4)
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                            child: CachedNetworkImage(
+                              imageUrl: item['cover'] ?? '',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
