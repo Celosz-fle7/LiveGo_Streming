@@ -3,11 +3,9 @@ Thumbs.db
 *.log
 *.tmp
 .vscode/
-.idea/
 
-# Blokir semua folder backup eksternal dan tar.xz
-*backup*/
-*_backup*
-*.tar.gz
-*.tar.xz
+# Blokir semua folder backup di dalam proyek
+backup_tv/
+backup_tv_fix/
+backup_tv_manual/
 *.bak
