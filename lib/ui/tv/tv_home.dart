@@ -1,3 +1,11 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import '../api_service.dart';
+import 'tv_player.dart';
+
 class TVHomePage extends StatefulWidget {
   const TVHomePage({super.key});
 
@@ -6,127 +14,76 @@ class TVHomePage extends StatefulWidget {
 }
 
 class _TVHomePageState extends State<TVHomePage> {
-  final FocusNode _focusNode = FocusNode();
 
   List platforms = [
     {'id': 'freereels', 'name': 'FreeReels'},
     {'id': 'shortmax', 'name': 'ShortMax'},
     {'id': 'dramawave', 'name': 'DramaWave'},
-    {'id': 'netshort', 'name': 'NetShort'}
+    {'id': 'netshort', 'name': 'NetShort'},
   ];
 
   List activeDramas = [];
 
-  List sidebarMenus = [
-    {'id': 'beranda', 'name': 'Beranda', 'icon': Icons.home},
-    {'id': 'unduhan', 'name': 'Unduhan', 'icon': Icons.download},
-    {'id': 'riwayat', 'name': 'Riwayat', 'icon': Icons.history},
-    {'id': 'favorit', 'name': 'Favorit', 'icon': Icons.favorite},
-    {'id': 'akun', 'name': 'Akun', 'icon': Icons.person},
-  ];
-
-  String selectedMenu = 'beranda';
   String selectedPlatform = 'freereels';
-
-  bool isSidebarExpanded = false;
   bool isLoading = true;
 
-  int sidebarFocusIndex = 0;
-  int platformFocusIndex = 0;
-  int dramaFocusIndex = 0;
+  int focusIndex = 0;
+
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
+    _focusNode.requestFocus();
+    _fetchData();
   }
 
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadData() async {
+  Future<void> _fetchData() async {
     setState(() => isLoading = true);
 
     final res = await ApiService.get(
       "/api/v2/detail?category_p=$selectedPlatform&id=all&lang=id",
     );
 
-    if (res != null && res['success'] == true) {
+    if (res != null && res['data'] != null) {
       setState(() {
         activeDramas =
-            res['data']['chapters'] ?? res['data']['films'] ?? [];
-        isLoading = false;
+            res['data']['chapters'] ??
+            res['data']['films'] ??
+            [];
       });
-    } else {
-      setState(() => isLoading = false);
     }
+
+    setState(() => isLoading = false);
   }
 
   void _onKey(RawKeyEvent event) {
     if (event is! RawKeyDownEvent) return;
 
-    final key = event.logicalKey;
-
     setState(() {
-      // LEFT → sidebar
-      if (key == LogicalKeyboardKey.arrowLeft) {
-        isSidebarExpanded = true;
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+          focusIndex < activeDramas.length - 1) {
+        focusIndex++;
       }
 
-      // RIGHT → content
-      if (key == LogicalKeyboardKey.arrowRight) {
-        isSidebarExpanded = false;
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+          focusIndex > 0) {
+        focusIndex--;
       }
 
-      // SIDEBAR NAV
-      if (isSidebarExpanded) {
-        if (key == LogicalKeyboardKey.arrowDown &&
-            sidebarFocusIndex < sidebarMenus.length - 1) {
-          sidebarFocusIndex++;
-        }
+      if (event.logicalKey == LogicalKeyboardKey.enter ||
+          event.logicalKey == LogicalKeyboardKey.select) {
+        final item = activeDramas[focusIndex];
 
-        if (key == LogicalKeyboardKey.arrowUp &&
-            sidebarFocusIndex > 0) {
-          sidebarFocusIndex--;
-        }
-
-        if (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter) {
-          selectedMenu =
-              sidebarMenus[sidebarFocusIndex]['id'];
-          isSidebarExpanded = false;
-        }
-      }
-
-      // PLATFORM NAV
-      if (!isSidebarExpanded) {
-        if (key == LogicalKeyboardKey.arrowRight &&
-            platformFocusIndex < platforms.length - 1) {
-          platformFocusIndex++;
-        }
-
-        if (key == LogicalKeyboardKey.arrowLeft &&
-            platformFocusIndex > 0) {
-          platformFocusIndex--;
-        }
-
-        if (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter) {
-          selectedPlatform =
-              platforms[platformFocusIndex]['id'];
-          _loadData();
-        }
-
-        if (key == LogicalKeyboardKey.arrowDown) {
-          dramaFocusIndex = 0;
-        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TVPlayerPage(
+              videoUrl: item['video_url'] ?? '',
+              title: item['title'] ?? 'Drama',
+            ),
+          ),
+        );
       }
     });
   }
@@ -139,53 +96,21 @@ class _TVHomePageState extends State<TVHomePage> {
       body: RawKeyboardListener(
         focusNode: _focusNode,
         onKey: _onKey,
-
         child: Row(
           children: [
+
             // SIDEBAR
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: isSidebarExpanded ? 220 : 70,
+            Container(
+              width: 80,
               color: const Color(0xFF161B22),
-
-              child: Column(
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 20),
-                  const Text(
-                    "LiveGO TV",
-                    style: TextStyle(
-                      color: Color(0xFF06B6D4),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: sidebarMenus.length,
-                      itemBuilder: (c, i) {
-                        final focused =
-                            isSidebarExpanded &&
-                            sidebarFocusIndex == i;
-
-                        return Container(
-                          margin: const EdgeInsets.all(6),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: focused
-                                ? const Color(0xFF06B6D4)
-                                : Colors.transparent,
-                            borderRadius:
-                                BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            sidebarMenus[i]['icon'],
-                            color: Colors.white,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                  Icon(Icons.home, color: Colors.white),
+                  SizedBox(height: 20),
+                  Icon(Icons.movie, color: Colors.white),
+                  SizedBox(height: 20),
+                  Icon(Icons.favorite, color: Colors.white),
                 ],
               ),
             ),
@@ -195,37 +120,36 @@ class _TVHomePageState extends State<TVHomePage> {
               child: isLoading
                   ? const Center(
                       child: CircularProgressIndicator(
-                        color: Color(0xFF06B6D4),
+                        color: Colors.cyan,
                       ),
                     )
                   : GridView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 5,
                         childAspectRatio: 0.7,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
                       ),
                       itemCount: activeDramas.length,
-                      itemBuilder: (c, i) {
+                      itemBuilder: (context, i) {
                         final item = activeDramas[i];
+                        final focused = i == focusIndex;
 
                         return AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(10),
                             border: Border.all(
-                              color: i == dramaFocusIndex
-                                  ? const Color(0xFF06B6D4)
+                              color: focused
+                                  ? Colors.cyan
                                   : Colors.transparent,
                               width: 2,
                             ),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                             child: CachedNetworkImage(
                               imageUrl: item['cover'] ?? '',
                               fit: BoxFit.cover,
