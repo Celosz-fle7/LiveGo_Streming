@@ -23,8 +23,11 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
   @override
   void initState() {
     super.initState();
-    _playerFocusNode.requestFocus();
     _loadTVVideo();
+    // Memastikan node fokus langsung aktif setelah UI selesai dirender
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _playerFocusNode.requestFocus();
+    });
   }
 
   @override
@@ -42,14 +45,19 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
       qualities = res['data']['streams'] ?? [];
       String videoUrl = '';
       
-      // Logika Estafet Default: Cari 720p, jika tidak ada fallback ke resolusi pertama
-      for (var q in qualities) { if (q['quality'].toString().contains('720')) { videoUrl = q['url'] ?? ''; break; } }
+      for (var q in qualities) { 
+        if (q['quality'].toString().contains('720')) { 
+          videoUrl = q['url'] ?? ''; 
+          break; 
+        } 
+      }
       if (videoUrl.isEmpty && qualities.isNotEmpty) videoUrl = qualities[0]['url'] ?? '';
 
       if (videoUrl.isNotEmpty) {
-        _controller?.dispose();
+        await _controller?.dispose();
         _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
           ..initialize().then((_) {
+            if (!mounted) return;
             setState(() {
               isLoading = false;
               _duration = _controller!.value.duration.inSeconds.toDouble();
@@ -64,8 +72,12 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
             _position = _controller!.value.position.inSeconds.toDouble();
           });
         });
-      } else { setState(() => isLoading = false); }
-    } else { setState(() => isLoading = false); }
+      } else { 
+        setState(() => isLoading = false); 
+      }
+    } else { 
+      setState(() => isLoading = false); 
+    }
   }
 
   void _startTimer() {
@@ -75,49 +87,82 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
     });
   }
 
-  void _handleTVRemote(RawKeyEvent event) {
-    if (event is! RawKeyDownEvent) return;
+  KeyEventResult _handleTVRemote(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    
     setState(() => showControls = true);
     _startTimer();
 
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.space) {
+    
+    // Tombol OK / Select / Enter / Space untuk Play-Pause
+    if (key == LogicalKeyboardKey.select || 
+        key == LogicalKeyboardKey.enter || 
+        key == LogicalKeyboardKey.space) {
       if (_controller != null) {
         setState(() {
           if (_controller!.value.isPlaying) {
-            _controller!.pause(); isPlaying = false;
+            _controller!.pause(); 
+            isPlaying = false;
           } else {
-            _controller!.play(); isPlaying = true;
+            _controller!.play(); 
+            isPlaying = true;
           }
         });
       }
-    } else if (key == LogicalKeyboardKey.arrowRight) {
-      _controller?.seekTo(_controller!.value.position + const Duration(seconds: 10));
-    } else if (key == LogicalKeyboardKey.arrowLeft) {
-      _controller?.seekTo(_controller!.value.position - const Duration(seconds: 10));
-    } else if (key == LogicalKeyboardKey.arrowUp) {
+      return KeyEventResult.handled;
+    } 
+    
+    // Tombol Kanan untuk Fast Forward (+10 detik)
+    else if (key == LogicalKeyboardKey.arrowRight) {
+      if (_controller != null) {
+        _controller!.seekTo(_controller!.value.position + const Duration(seconds: 10));
+      }
+      return KeyEventResult.handled;
+    } 
+    
+    // Tombol Kiri untuk Rewind (-10 detik)
+    else if (key == LogicalKeyboardKey.arrowLeft) {
+      if (_controller != null) {
+        _controller!.seekTo(_controller!.value.position - const Duration(seconds: 10));
+      }
+      return KeyEventResult.handled;
+    } 
+    
+    // Tombol Atas untuk Episode Selanjutnya
+    else if (key == LogicalKeyboardKey.arrowUp) {
       currentEpisode++;
       _loadTVVideo();
-    } else if (key == LogicalKeyboardKey.arrowDown && currentEpisode > 1) {
+      return KeyEventResult.handled;
+    } 
+    
+    // Tombol Bawah untuk Episode Sebelumnya
+    else if (key == LogicalKeyboardKey.arrowDown && currentEpisode > 1) {
       currentEpisode--;
       _loadTVVideo();
+      return KeyEventResult.handled;
     }
+
+    return KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: RawKeyboardListener(
+      body: Focus(
         focusNode: _playerFocusNode,
-        onKey: _handleTVRemote,
+        onKeyEvent: _handleTVRemote,
         child: Stack(
           children: [
             Center(
               child: isLoading
                   ? const CircularProgressIndicator(color: Color(0xFF06B6D4))
                   : _controller != null && _controller!.value.isInitialized
-                      ? AspectRatio(aspectRatio: _controller!.value.aspectRatio, child: VideoPlayer(_controller!))
+                      ? AspectRatio(
+                          aspectRatio: _controller!.value.aspectRatio, 
+                          child: VideoPlayer(_controller!),
+                        )
                       : const Text("Video tidak tersedia", style: TextStyle(color: Colors.white)),
             ),
             if (showControls && !isLoading)
@@ -129,11 +174,21 @@ class _TVPlayerPageState extends State<TVPlayerPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text("${widget.title} - Episode $currentEpisode", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text(
+                        "${widget.title} - Episode $currentEpisode", 
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
                       Row(
                         children: [
                           Text("${_position.toInt()}s", style: const TextStyle(color: Colors.white)),
-                          Expanded(child: Slider(value: _position, max: _duration > 0 ? _duration : 1, activeColor: const Color(0xFF06B6D4), onChanged: (v) {})),
+                          Expanded(
+                            child: Slider(
+                              value: _position.clamp(0.0, _duration > 0 ? _duration : 1.0), 
+                              max: _duration > 0 ? _duration : 1.0, 
+                              activeColor: const Color(0xFF06B6D4), 
+                              onChanged: (v) {},
+                            ),
+                          ),
                           Text("${_duration.toInt()}s", style: const TextStyle(color: Colors.white)),
                         ],
                       )
