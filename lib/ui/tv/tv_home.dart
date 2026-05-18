@@ -1,15 +1,3 @@
-# `tv_home.dart` Full Fix (Sidebar Tetap Ada)
-
-Kode berikut memperbaiki:
-
-* Remote TV macet.
-* Poster berkedip (blink).
-* Focus hilang.
-* Sidebar tetap dipertahankan.
-
----
-
-```dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
