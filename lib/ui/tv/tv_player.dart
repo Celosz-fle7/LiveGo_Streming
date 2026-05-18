@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
+
 class TVPlayerPage extends StatefulWidget {
   final String videoUrl;
   final String title;
@@ -9,43 +14,36 @@ class TVPlayerPage extends StatefulWidget {
   });
 
   @override
-  State<TVPlayerPage> createState() =>
-      _TVPlayerPageState();
+  State<TVPlayerPage> createState() => _TVPlayerPageState();
 }
 
-class _TVPlayerPageState
-    extends State<TVPlayerPage> {
-
+class _TVPlayerPageState extends State<TVPlayerPage> {
   late VideoPlayerController controller;
-
   final FocusNode focusNode = FocusNode();
 
   bool showControls = true;
-
   Timer? hideTimer;
-
-  DateTime? lastKeyPress;
+  DateTime lastKeyPress = DateTime.now();
 
   @override
   void initState() {
     super.initState();
 
-    controller =
-        VideoPlayerController.networkUrl(
+    controller = VideoPlayerController.networkUrl(
       Uri.parse(widget.videoUrl),
     );
 
     controller.initialize().then((_) {
+      if (!mounted) return;
       setState(() {});
       controller.play();
     });
 
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       focusNode.requestFocus();
     });
 
-    startHideTimer();
+    _startHideTimer();
   }
 
   @override
@@ -56,89 +54,72 @@ class _TVPlayerPageState
     super.dispose();
   }
 
-  void startHideTimer() {
+  void _startHideTimer() {
     hideTimer?.cancel();
-
-    hideTimer = Timer(
-      const Duration(seconds: 5),
-      () {
-        if (mounted) {
-          setState(() {
-            showControls = false;
-          });
-        }
-      },
-    );
+    hideTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() => showControls = false);
+      }
+    });
   }
 
-  void showOverlay() {
+  void _showControls() {
     if (!showControls) {
-      setState(() {
-        showControls = true;
-      });
+      setState(() => showControls = true);
     }
-
-    startHideTimer();
+    _startHideTimer();
   }
 
-  KeyEventResult onKey(
-    FocusNode node,
-    KeyEvent event,
-  ) {
-    if (event is! KeyDownEvent) {
-      return KeyEventResult.ignored;
-    }
+  KeyEventResult onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-    /// DEBOUNCE
     final now = DateTime.now();
-
-    if (lastKeyPress != null &&
-        now.difference(lastKeyPress!) <
-            const Duration(milliseconds: 120)) {
+    if (now.difference(lastKeyPress) <
+        const Duration(milliseconds: 120)) {
       return KeyEventResult.handled;
     }
-
     lastKeyPress = now;
 
-    showOverlay();
+    _showControls();
 
     final key = event.logicalKey;
 
-    /// PLAY PAUSE
+    /// PLAY / PAUSE
     if (key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter) {
-
       if (controller.value.isPlaying) {
         controller.pause();
       } else {
         controller.play();
       }
-
       setState(() {});
-
       return KeyEventResult.handled;
     }
 
     /// SEEK FORWARD
     if (key == LogicalKeyboardKey.arrowRight) {
+      final pos = controller.value.position +
+          const Duration(seconds: 10);
 
-      final pos =
-          controller.value.position +
-              const Duration(seconds: 10);
+      final max = controller.value.duration;
 
-      controller.seekTo(pos);
+      controller.seekTo(
+        pos > max ? max : pos,
+      );
 
       return KeyEventResult.handled;
     }
 
-    /// SEEK BACK
+    /// SEEK BACKWARD
     if (key == LogicalKeyboardKey.arrowLeft) {
+      final pos = controller.value.position -
+          const Duration(seconds: 10);
 
-      final pos =
-          controller.value.position -
-              const Duration(seconds: 10);
-
-      controller.seekTo(pos);
+      controller.seekTo(
+        pos < Duration.zero
+            ? Duration.zero
+            : pos,
+      );
 
       return KeyEventResult.handled;
     }
@@ -148,10 +129,8 @@ class _TVPlayerPageState
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: Colors.black,
-
       body: Focus(
         focusNode: focusNode,
         onKeyEvent: onKey,
@@ -161,29 +140,22 @@ class _TVPlayerPageState
 
             /// VIDEO
             Center(
-              child:
-                  controller.value.isInitialized
-                      ? AspectRatio(
-                          aspectRatio:
-                              controller
-                                  .value
-                                  .aspectRatio,
-
-                          child: VideoPlayer(
-                            controller,
-                          ),
-                        )
-                      : const CircularProgressIndicator(),
+              child: controller.value.isInitialized
+                  ? AspectRatio(
+                      aspectRatio:
+                          controller.value.aspectRatio,
+                      child: VideoPlayer(controller),
+                    )
+                  : const CircularProgressIndicator(
+                      color: Colors.cyan,
+                    ),
             ),
 
             /// CONTROLS
             AnimatedOpacity(
-              opacity:
-                  showControls ? 1 : 0,
-
+              opacity: showControls ? 1 : 0,
               duration:
-                  const Duration(
-                      milliseconds: 200),
+                  const Duration(milliseconds: 200),
 
               child: IgnorePointer(
                 ignoring: !showControls,
@@ -191,13 +163,10 @@ class _TVPlayerPageState
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin:
-                          Alignment.bottomCenter,
+                      begin: Alignment.bottomCenter,
                       end: Alignment.center,
-
                       colors: [
-                        Colors.black
-                            .withOpacity(0.9),
+                        Colors.black.withOpacity(0.9),
                         Colors.transparent,
                       ],
                     ),
@@ -205,13 +174,11 @@ class _TVPlayerPageState
 
                   child: SafeArea(
                     child: Padding(
-                      padding:
-                          const EdgeInsets.all(30),
+                      padding: const EdgeInsets.all(25),
 
                       child: Column(
                         mainAxisAlignment:
                             MainAxisAlignment.end,
-
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
 
@@ -219,11 +186,9 @@ class _TVPlayerPageState
 
                           Text(
                             widget.title,
-
-                            style:
-                                const TextStyle(
+                            style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 24,
+                              fontSize: 22,
                               fontWeight:
                                   FontWeight.bold,
                             ),
@@ -233,41 +198,35 @@ class _TVPlayerPageState
 
                           /// PROGRESS
                           ValueListenableBuilder(
-                            valueListenable:
-                                controller,
+                            valueListenable: controller,
+                            builder: (context, value, _) {
+                              final pos = value
+                                  .position
+                                  .inSeconds
+                                  .toDouble();
 
-                            builder:
-                                (context, value, _) {
+                              final dur = value
+                                  .duration
+                                  .inSeconds
+                                  .toDouble();
 
-                              final pos =
-                                  value.position
-                                      .inSeconds
-                                      .toDouble();
-
-                              final dur =
-                                  value.duration
-                                      .inSeconds
-                                      .toDouble();
+                              final progress =
+                                  (dur <= 0)
+                                      ? 0.0
+                                      : pos / dur;
 
                               return Column(
                                 children: [
 
                                   LinearProgressIndicator(
-                                    value: dur <= 0
-                                        ? 0
-                                        : pos / dur,
-
+                                    value: progress,
                                     minHeight: 6,
-
-                                    color:
-                                        Colors.cyan,
-
+                                    color: Colors.cyan,
                                     backgroundColor:
                                         Colors.white24,
                                   ),
 
-                                  const SizedBox(
-                                      height: 12),
+                                  const SizedBox(height: 10),
 
                                   Row(
                                     mainAxisAlignment:
@@ -275,11 +234,9 @@ class _TVPlayerPageState
                                             .spaceBetween,
 
                                     children: [
-
                                       Text(
-                                        formatTime(
+                                        _fmt(
                                             value.position),
-
                                         style:
                                             const TextStyle(
                                           color:
@@ -288,9 +245,8 @@ class _TVPlayerPageState
                                       ),
 
                                       Text(
-                                        formatTime(
+                                        _fmt(
                                             value.duration),
-
                                         style:
                                             const TextStyle(
                                           color:
@@ -316,21 +272,17 @@ class _TVPlayerPageState
     );
   }
 
-  String formatTime(Duration d) {
-
+  String _fmt(Duration d) {
     String two(int n) =>
         n.toString().padLeft(2, '0');
 
-    final h = two(d.inHours);
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
 
-    final m = two(d.inMinutes.remainder(60));
-
-    final s = two(d.inSeconds.remainder(60));
-
-    if (h == '00') {
-      return "$m:$s";
+    if (h > 0) {
+      return "${two(h)}:${two(m)}:${two(s)}";
     }
-
-    return "$h:$m:$s";
+    return "${two(m)}:${two(s)}";
   }
 }
