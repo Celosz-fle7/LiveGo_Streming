@@ -1,10 +1,23 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+import '../api_service.dart';
+import 'tv_player.dart';
+
+class TVHomePage extends StatefulWidget {
+  const TVHomePage({super.key});
+
+  @override
+  State<TVHomePage> createState() => _TVHomePageState();
+}
+
 class _TVHomePageState extends State<TVHomePage> {
   final FocusNode _focusNode = FocusNode();
 
-  // HANYA 1 PLATFORM
   final Map<String, dynamic> platform = {
     'id': 'freereels',
-    'name': 'FreeReels'
+    'name': 'FreeReels',
   };
 
   List<Map<String, dynamic>> sidebarMenus = [
@@ -37,6 +50,12 @@ class _TVHomePageState extends State<TVHomePage> {
     _fetchTVData();
   }
 
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchTVData() async {
     setState(() => isLoading = true);
 
@@ -60,6 +79,14 @@ class _TVHomePageState extends State<TVHomePage> {
         isLoading = false;
       });
     }
+  }
+
+  void _restoreFocus() {
+    Future.delayed(const Duration(milliseconds: 30), () {
+      if (mounted && !_focusNode.hasFocus) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
   void _handleKeyEvent(RawKeyEvent event) {
@@ -102,9 +129,7 @@ class _TVHomePageState extends State<TVHomePage> {
         }
       } else if (key == LogicalKeyboardKey.arrowUp) {
         if (dramaFocusIndex < 6) {
-          setState(() {
-            dramaFocusIndex = -1;
-          });
+          setState(() => dramaFocusIndex = -1);
         } else {
           setState(() => dramaFocusIndex -= 6);
         }
@@ -130,3 +155,151 @@ class _TVHomePageState extends State<TVHomePage> {
       _restoreFocus();
     }
   }
+
+  Widget _buildPoster(dynamic drama, bool isFocused) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isFocused ? const Color(0xFF06B6D4) : Colors.transparent,
+          width: 2,
+        ),
+        boxShadow: isFocused
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF06B6D4).withOpacity(0.4),
+                  blurRadius: 10,
+                )
+              ]
+            : [],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: CachedNetworkImage(
+          imageUrl: drama['cover'] ?? '',
+          fit: BoxFit.cover,
+          placeholder: (c, u) => Container(color: Colors.white12),
+          errorWidget: (c, u, e) => Container(
+            color: Colors.white24,
+            child: const Icon(Icons.movie, color: Colors.white30),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1117),
+      body: SafeArea(
+        child: RawKeyboardListener(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKey: _handleKeyEvent,
+          child: Row(
+            children: [
+              // SIDEBAR
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isSidebarExpanded ? 220 : 70,
+                color: const Color(0xFF161B22),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    const Text(
+                      'CineFlow',
+                      style: TextStyle(
+                        color: Color(0xFF06B6D4),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: sidebarMenus.length,
+                        itemBuilder: (context, i) {
+                          final item = sidebarMenus[i];
+                          final focused = sidebarFocusIndex == i && isSidebarExpanded;
+                          final selected = selectedMenu == item['id'];
+
+                          return Container(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: focused
+                                  ? const Color(0xFF06B6D4)
+                                  : selected
+                                      ? Colors.white10
+                                      : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ListTile(
+                              leading: Icon(
+                                item['icon'],
+                                color: Colors.white,
+                              ),
+                              title: isSidebarExpanded
+                                  ? Text(item['name'],
+                                      style:
+                                          const TextStyle(color: Colors.white))
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // MAIN
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: selectedMenu != 'beranda'
+                            ? const Center(
+                                child: Text(
+                                  'Menu kosong',
+                                  style: TextStyle(color: Colors.white38),
+                                ),
+                              )
+                            : isLoading
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                        color: Color(0xFF06B6D4)),
+                                  )
+                                : GridView.builder(
+                                    itemCount: activeDramas.length,
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 6,
+                                      childAspectRatio: 0.7,
+                                      crossAxisSpacing: 12,
+                                      mainAxisSpacing: 12,
+                                    ),
+                                    itemBuilder: (context, i) {
+                                      final drama = activeDramas[i];
+                                      return _buildPoster(
+                                        drama,
+                                        dramaFocusIndex == i,
+                                      );
+                                    },
+                                  ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
