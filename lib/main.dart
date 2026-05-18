@@ -15,7 +15,7 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -41,46 +41,72 @@ class DeviceWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTV = MediaQuery.of(context).size.width > 900;
-    
-    if (isTV) {
-      return const TVHomePage();
-    } else {
-      return const MainPage();
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        
+        // 🔥 TV MODE DETECTION (STABLE)
+        final isTV = constraints.maxWidth > 900;
+
+        return isTV
+            ? const TVHomePage()
+            : const MainPage();
+      },
+    );
   }
 }
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
-  @override State<MainPage> createState() => _MainPageState();
+
+  @override
+  State<MainPage> createState() => _MainPageState();
 }
 
 class _MainPageState extends State<MainPage> {
   int _idx = 0;
-  final List<Widget> _pages = [
-    const HomePage(),
-    const HistoryScreen(),
-    const SearchScreen(),
-    const DownloadPage(),
-    const AccountPage(),
+
+  final List<Widget> _pages = const [
+    HomePage(),
+    HistoryScreen(),
+    SearchScreen(),
+    DownloadPage(),
+    AccountPage(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _idx, children: _pages),
+      body: IndexedStack(
+        index: _idx,
+        children: _pages,
+      ),
+
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _idx,
         onTap: (i) => setState(() => _idx = i),
         type: BottomNavigationBarType.fixed,
         elevation: 8,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'HISTORY'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.download), label: 'DOWNLOAD'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'AKUN'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'HOME',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'HISTORY',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.download),
+            label: 'DOWNLOAD',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'AKUN',
+          ),
         ],
       ),
     );
