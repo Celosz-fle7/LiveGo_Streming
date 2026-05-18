@@ -424,15 +424,3 @@ class _TVHomePageState extends State<TVHomePage> {
     );
   }
 }
-```
-
----
-
-## Perbaikan Utama
-
-* Sidebar tetap ada.
-* `FocusNode` tidak dibuat berulang.
-* Poster tidak blink.
-* `CachedNetworkImage` tanpa fade animation.
-* Remote lebih responsif.
-* Fokus otomatis kembali setelah keluar dari player.
