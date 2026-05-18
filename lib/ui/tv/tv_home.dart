@@ -1,7 +1,17 @@
+# `tv_home.dart` Full Fix (Sidebar Tetap Ada)
+
+Kode berikut memperbaiki:
+
+* Remote TV macet.
+* Poster berkedip (blink).
+* Focus hilang.
+* Sidebar tetap dipertahankan.
+
+---
+
+```dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import '../api_service.dart';
 import 'tv_player.dart';
@@ -14,154 +24,427 @@ class TVHomePage extends StatefulWidget {
 }
 
 class _TVHomePageState extends State<TVHomePage> {
+  final FocusNode _focusNode = FocusNode();
 
-  List platforms = [
+  List<Map<String, dynamic>> platforms = [
     {'id': 'freereels', 'name': 'FreeReels'},
     {'id': 'shortmax', 'name': 'ShortMax'},
     {'id': 'dramawave', 'name': 'DramaWave'},
     {'id': 'netshort', 'name': 'NetShort'},
   ];
 
-  List activeDramas = [];
+  List<Map<String, dynamic>> sidebarMenus = [
+    {'id': 'beranda', 'name': 'Beranda', 'icon': Icons.home},
+    {'id': 'unduhan', 'name': 'Unduhan', 'icon': Icons.download},
+    {'id': 'riwayat', 'name': 'Riwayat', 'icon': Icons.history},
+    {'id': 'favorit', 'name': 'Favorit', 'icon': Icons.favorite},
+    {'id': 'akun', 'name': 'Akun', 'icon': Icons.person},
+  ];
 
+  List<dynamic> activeDramas = [];
+
+  String selectedMenu = 'beranda';
   String selectedPlatform = 'freereels';
+
+  bool isSidebarExpanded = false;
   bool isLoading = true;
 
-  int focusIndex = 0;
-
-  final FocusNode _focusNode = FocusNode();
+  int sidebarFocusIndex = 0;
+  int platformFocusIndex = -1;
+  int dramaFocusIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    _focusNode.requestFocus();
-    _fetchData();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+
+    _fetchTVData();
   }
 
-  Future<void> _fetchData() async {
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchTVData() async {
     setState(() => isLoading = true);
 
     final res = await ApiService.get(
       "/api/v2/detail?category_p=$selectedPlatform&id=all&lang=id",
     );
 
-    if (res != null && res['data'] != null) {
+    if (!mounted) return;
+
+    if (res != null && res['success'] == true && res['data'] != null) {
       setState(() {
         activeDramas =
             res['data']['chapters'] ??
             res['data']['films'] ??
             [];
+        isLoading = false;
+      });
+    } else {
+      setState(() {
+        activeDramas = [];
+        isLoading = false;
       });
     }
-
-    setState(() => isLoading = false);
   }
 
-  void _onKey(RawKeyEvent event) {
+  void _restoreFocus() {
+    Future.delayed(const Duration(milliseconds: 30), () {
+      if (mounted && !_focusNode.hasFocus) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  void _handleKeyEvent(RawKeyEvent event) {
     if (event is! RawKeyDownEvent) return;
 
-    setState(() {
-      if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
-          focusIndex < activeDramas.length - 1) {
-        focusIndex++;
+    final key = event.logicalKey;
+
+    if (isSidebarExpanded) {
+      if (key == LogicalKeyboardKey.arrowDown &&
+          sidebarFocusIndex < sidebarMenus.length - 1) {
+        setState(() => sidebarFocusIndex++);
+      } else if (key == LogicalKeyboardKey.arrowUp &&
+          sidebarFocusIndex > 0) {
+        setState(() => sidebarFocusIndex--);
+      } else if (key == LogicalKeyboardKey.arrowRight ||
+          key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.select) {
+        setState(() {
+          selectedMenu = sidebarMenus[sidebarFocusIndex]['id'];
+          isSidebarExpanded = false;
+          platformFocusIndex = 0;
+        });
       }
 
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-          focusIndex > 0) {
-        focusIndex--;
+      _restoreFocus();
+      return;
+    }
+
+    if (platformFocusIndex != -1) {
+      if (key == LogicalKeyboardKey.arrowRight &&
+          platformFocusIndex < platforms.length - 1) {
+        setState(() => platformFocusIndex++);
+      } else if (key == LogicalKeyboardKey.arrowLeft) {
+        if (platformFocusIndex == 0) {
+          setState(() {
+            isSidebarExpanded = true;
+            platformFocusIndex = -1;
+          });
+        } else {
+          setState(() => platformFocusIndex--);
+        }
+      } else if (key == LogicalKeyboardKey.arrowDown &&
+          activeDramas.isNotEmpty) {
+        setState(() {
+          platformFocusIndex = -1;
+          dramaFocusIndex = 0;
+        });
+      } else if (key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.select) {
+        final newPlatform = platforms[platformFocusIndex]['id'];
+
+        if (selectedPlatform != newPlatform) {
+          setState(() {
+            selectedPlatform = newPlatform;
+            dramaFocusIndex = -1;
+          });
+          _fetchTVData();
+        }
       }
 
-      if (event.logicalKey == LogicalKeyboardKey.enter ||
-          event.logicalKey == LogicalKeyboardKey.select) {
-        final item = activeDramas[focusIndex];
+      _restoreFocus();
+      return;
+    }
+
+    if (dramaFocusIndex != -1) {
+      if (key == LogicalKeyboardKey.arrowRight &&
+          dramaFocusIndex < activeDramas.length - 1) {
+        setState(() => dramaFocusIndex++);
+      } else if (key == LogicalKeyboardKey.arrowLeft) {
+        if (dramaFocusIndex % 6 == 0) {
+          setState(() {
+            isSidebarExpanded = true;
+            dramaFocusIndex = -1;
+          });
+        } else {
+          setState(() => dramaFocusIndex--);
+        }
+      } else if (key == LogicalKeyboardKey.arrowUp) {
+        if (dramaFocusIndex < 6) {
+          setState(() {
+            platformFocusIndex = 0;
+            dramaFocusIndex = -1;
+          });
+        } else {
+          setState(() => dramaFocusIndex -= 6);
+        }
+      } else if (key == LogicalKeyboardKey.arrowDown &&
+          dramaFocusIndex + 6 < activeDramas.length) {
+        setState(() => dramaFocusIndex += 6);
+      } else if (key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.select) {
+        final drama = activeDramas[dramaFocusIndex];
 
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => TVPlayerPage(
-              videoUrl: item['video_url'] ?? '',
-              title: item['title'] ?? 'Drama',
+              id: drama['id'].toString(),
+              source: selectedPlatform,
+              title: drama['title'] ?? 'Drama TV',
             ),
           ),
-        );
+        ).then((_) => _restoreFocus());
       }
-    });
+
+      _restoreFocus();
+    }
+  }
+
+  Widget _buildPoster(dynamic drama, bool isFocused) {
+    return RepaintBoundary(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isFocused
+                ? const Color(0xFF06B6D4)
+                : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF06B6D4).withOpacity(0.4),
+                    blurRadius: 10,
+                  ),
+                ]
+              : [],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: CachedNetworkImage(
+            imageUrl: drama['cover'] ?? '',
+            fit: BoxFit.cover,
+            memCacheWidth: 300,
+            fadeInDuration: Duration.zero,
+            fadeOutDuration: Duration.zero,
+            placeholder: (c, u) => Container(color: Colors.white12),
+            errorWidget: (c, u, e) => Container(
+              color: Colors.white24,
+              child: const Icon(Icons.movie, color: Colors.white30),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
-
-      body: RawKeyboardListener(
-        focusNode: _focusNode,
-        onKey: _onKey,
-        child: Row(
-          children: [
-
-            // SIDEBAR
-            Container(
-              width: 80,
-              color: const Color(0xFF161B22),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.home, color: Colors.white),
-                  SizedBox(height: 20),
-                  Icon(Icons.movie, color: Colors.white),
-                  SizedBox(height: 20),
-                  Icon(Icons.favorite, color: Colors.white),
-                ],
-              ),
-            ),
-
-            // CONTENT
-            Expanded(
-              child: isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.cyan,
+      body: SafeArea(
+        child: RawKeyboardListener(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKey: _handleKeyEvent,
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isSidebarExpanded ? 220 : 70,
+                color: const Color(0xFF161B22),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    const Text(
+                      'CineFlow',
+                      style: TextStyle(
+                        color: Color(0xFF06B6D4),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(20),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 5,
-                        childAspectRatio: 0.7,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
-                      itemCount: activeDramas.length,
-                      itemBuilder: (context, i) {
-                        final item = activeDramas[i];
-                        final focused = i == focusIndex;
-
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: focused
-                                  ? Colors.cyan
-                                  : Colors.transparent,
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: CachedNetworkImage(
-                              imageUrl: item['cover'] ?? '',
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        );
-                      },
                     ),
-            ),
-          ],
+                    const SizedBox(height: 30),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: sidebarMenus.length,
+                        itemBuilder: (context, idx) {
+                          final item = sidebarMenus[idx];
+                          final isFocused =
+                              isSidebarExpanded && sidebarFocusIndex == idx;
+                          final isSelected =
+                              selectedMenu == item['id'];
+
+                          return Container(
+                            margin: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isFocused
+                                  ? const Color(0xFF06B6D4)
+                                  : (isSelected
+                                      ? Colors.white10
+                                      : Colors.transparent),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ListTile(
+                              dense: true,
+                              leading: Icon(
+                                item['icon'],
+                                color: isFocused || isSelected
+                                    ? Colors.white
+                                    : Colors.white60,
+                              ),
+                              title: isSidebarExpanded
+                                  ? Text(
+                                      item['name'],
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 40,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: platforms.length,
+                          itemBuilder: (context, idx) {
+                            final p = platforms[idx];
+                            final isFocused =
+                                platformFocusIndex == idx;
+                            final isSelected =
+                                selectedPlatform == p['id'];
+
+                            return Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isFocused
+                                    ? const Color(0xFF06B6D4)
+                                    : (isSelected
+                                        ? const Color(0xFF1E293B)
+                                        : Colors.transparent),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isFocused || isSelected
+                                      ? const Color(0xFF06B6D4)
+                                      : Colors.white24,
+                                ),
+                              ),
+                              child: Text(
+                                p['name'],
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      Expanded(
+                        child: selectedMenu != 'beranda'
+                            ? Center(
+                                child: Text(
+                                  'Halaman ${selectedMenu.toUpperCase()} Kosong',
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                  ),
+                                ),
+                              )
+                            : isLoading
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Color(0xFF06B6D4),
+                                    ),
+                                  )
+                                : activeDramas.isEmpty
+                                    ? const Center(
+                                        child: Text(
+                                          'Tidak ada drama ditemukan',
+                                          style: TextStyle(
+                                            color: Colors.white38,
+                                          ),
+                                        ),
+                                      )
+                                    : GridView.builder(
+                                        cacheExtent: 1000,
+                                        gridDelegate:
+                                            const SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 6,
+                                          childAspectRatio: 0.7,
+                                          crossAxisSpacing: 12,
+                                          mainAxisSpacing: 12,
+                                        ),
+                                        itemCount: activeDramas.length,
+                                        itemBuilder: (context, idx) {
+                                          final drama = activeDramas[idx];
+                                          final isFocused =
+                                              dramaFocusIndex == idx;
+
+                                          return _buildPoster(
+                                            drama,
+                                            isFocused,
+                                          );
+                                        },
+                                      ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+```
+
+---
+
+## Perbaikan Utama
+
+* Sidebar tetap ada.
+* `FocusNode` tidak dibuat berulang.
+* Poster tidak blink.
+* `CachedNetworkImage` tanpa fade animation.
+* Remote lebih responsif.
+* Fokus otomatis kembali setelah keluar dari player.
